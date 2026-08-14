@@ -2,17 +2,17 @@ import { Form, Head, usePage } from '@inertiajs/react';
 /* @chisel-email-verification */
 import { Link } from '@inertiajs/react';
 /* @end-chisel-email-verification */
-import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { Auth } from '@/types';
+import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import { edit } from '@/routes/profile';
 /* @chisel-email-verification */
 import { send } from '@/routes/verification';
-import type { Auth } from '@/types';
 /* @end-chisel-email-verification */
 
 type PageProps = {
