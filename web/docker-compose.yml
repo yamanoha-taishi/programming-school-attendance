@@ -1,3 +1,5 @@
+name: school-attendance
+
 services:
   app:
     build:
