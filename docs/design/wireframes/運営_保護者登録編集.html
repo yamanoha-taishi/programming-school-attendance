@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>WF: 保護者登録・編集画面（運営・スマホ版）</title>
+<style>
+  :root{
+    --line:#2b2b2b;
+    --gray1:#f4f4f4;
+    --gray2:#e4e4e4;
+    --gray3:#cfcfcf;
+    --annot:#8a8a8a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Hiragino Sans","Helvetica Neue",Arial,sans-serif;
+    background:#fafafa;
+    margin:0;
+    padding:32px;
+    display:grid;
+    grid-template-columns:280px 420px;
+    column-gap:40px;
+    align-items:start;
+    color:#1a1a1a;
+  }
+  .side{
+    grid-column:1;
+    grid-row:1;
+  }
+  .main{
+    grid-column:2;
+    grid-row:1;
+  }
+  .side h1{
+    font-size:18px;
+    margin:0 0 4px;
+  }
+  .side .sub{
+    font-size:12px;
+    color:#666;
+    margin-bottom:20px;
+  }
+  .side h2{
+    font-size:13px;
+    margin:20px 0 8px;
+    border-bottom:1px solid #ccc;
+    padding-bottom:4px;
+  }
+  .legend-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:11px;
+    margin-bottom:6px;
+    color:#444;
+  }
+  .legend-tag{
+    font-family:monospace;
+    background:#fff;
+    border:1px solid var(--annot);
+    color:var(--annot);
+    padding:1px 5px;
+    border-radius:3px;
+    font-size:10px;
+    white-space:nowrap;
+  }
+
+  /* --- phone frame --- */
+  .phone{
+    width:375px;
+    border:3px solid var(--line);
+    border-radius:28px;
+    padding:10px;
+    background:#fff;
+  }
+  .screen{
+    border:1px solid var(--line);
+    border-radius:16px;
+    overflow:hidden;
+    position:relative;
+    height:780px;
+    display:flex;
+    flex-direction:column;
+  }
+  .content{
+    flex:1;
+    overflow-y:auto;
+  }
+  .annot{
+    position:absolute;
+    top:2px;
+    right:6px;
+    font-family:monospace;
+    font-size:9px;
+    color:var(--annot);
+    letter-spacing:.02em;
+  }
+
+  .status-bar{
+    height:20px;
+    background:var(--gray1);
+    border-bottom:1px solid var(--line);
+  }
+  .app-header{
+    padding:10px 12px;
+    border-bottom:1px solid var(--line);
+    position:relative;
+  }
+  .back-row{
+    font-size:11px;
+    color:#666;
+    margin-bottom:6px;
+  }
+  .title{
+    font-size:15px;
+    font-weight:bold;
+  }
+
+  .readonly-box{
+    margin:12px 12px 0;
+    background:var(--gray1);
+    border:1px solid var(--gray3);
+    border-radius:6px;
+    padding:8px 10px;
+    font-size:12px;
+    color:#444;
+    position:relative;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+
+  .field{
+    margin:14px 12px 0;
+    position:relative;
+  }
+  .field label{
+    display:block;
+    font-size:11px;
+    color:#555;
+    margin-bottom:4px;
+  }
+  .field label .opt{
+    color:#999;
+    font-weight:normal;
+  }
+  .field input, .field textarea{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:8px 10px;
+    font-size:13px;
+    font-family:inherit;
+    background:#fff;
+  }
+  .field textarea{
+    height:56px;
+    resize:none;
+  }
+  .helper{
+    font-size:10px;
+    color:#888;
+    margin-top:4px;
+    line-height:1.5;
+  }
+
+  .section-title{
+    margin:20px 12px 4px;
+    font-size:11px;
+    font-weight:bold;
+    color:#555;
+    border-bottom:1px solid var(--gray3);
+    padding-bottom:4px;
+  }
+
+  .linked-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin:0 12px;
+    padding:10px 0;
+    border-bottom:1px solid var(--gray3);
+    font-size:13px;
+  }
+  .linked-row .chevron{
+    color:#999;
+  }
+
+  .action-box{
+    margin:14px 12px 0;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px;
+    position:relative;
+  }
+  .action-btn{
+    display:inline-block;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 12px;
+    font-size:12px;
+    font-weight:bold;
+    background:#fff;
+  }
+
+  .danger-box{
+    margin:20px 12px 16px;
+    padding-top:10px;
+    border-top:1px dashed var(--gray3);
+    position:relative;
+  }
+  .danger-link{
+    font-size:12px;
+    text-decoration:underline;
+    color:#333;
+  }
+
+  .footer-bar{
+    border-top:1px solid var(--line);
+    padding:10px 12px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+  }
+  .save-btn{
+    flex:1;
+    text-align:center;
+    background:var(--line);
+    color:#fff;
+    border-radius:6px;
+    padding:10px 0;
+    font-size:13px;
+    font-weight:bold;
+  }
+  .cancel-link{
+    font-size:12px;
+    color:#555;
+    padding:10px 8px;
+  }
+
+  .caption{
+    font-size:11px;
+    color:#666;
+    margin-top:10px;
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+  <div class="side">
+    <h1>WF：保護者登録・編集画面</h1>
+    <div class="sub">運営向け／スマホ／full_access のみ</div>
+
+    <h2>アノテーションの読み方</h2>
+    <div class="legend-item"><span class="legend-tag">nav</span> タップで画面遷移する要素</div>
+    <div class="legend-item"><span class="legend-tag">input</span> 入力できる項目</div>
+    <div class="legend-item"><span class="legend-tag">readonly</span> 編集できない表示専用の項目</div>
+    <div class="legend-item"><span class="legend-tag">action</span> 確認の上で実行する操作</div>
+    <div class="legend-item"><span class="legend-tag">danger</span> 削除など取り消しにくい操作</div>
+  </div>
+
+  <div class="main">
+    <div class="phone">
+      <div class="screen">
+        <div class="status-bar"></div>
+
+        <div class="app-header">
+          <span class="annot">nav</span>
+          <div class="back-row">‹ 保護者一覧</div>
+          <div class="title">保護者を編集</div>
+        </div>
+
+        <div class="content">
+
+          <div class="readonly-box">
+            <span class="annot">readonly</span>
+            会員番号：0001
+          </div>
+
+          <div class="field">
+            <span class="annot">input</span>
+            <label>名前</label>
+            <input type="text" value="佐藤 陽子">
+          </div>
+
+          <div class="field">
+            <label>名前カナ <span class="opt">（任意）</span></label>
+            <input type="text" value="サトウ ヨウコ">
+          </div>
+
+          <div class="field">
+            <label>メールアドレス <span class="opt">（任意）</span></label>
+            <input type="text" placeholder="未登録">
+            <div class="helper">未登録の場合、保護者が初回ログイン後に会員番号・初期パスワードでログインし、自身で登録できます。</div>
+          </div>
+
+          <div class="field">
+            <label>特記事項 <span class="opt">（任意）</span></label>
+            <textarea placeholder="特記事項があれば入力"></textarea>
+          </div>
+
+          <div class="section-title">生徒</div>
+          <div class="linked-row">
+            <span class="annot">nav</span>
+            佐藤 はると（基礎クラス1組）
+            <span class="chevron">›</span>
+          </div>
+
+          <div class="section-title">パスワード</div>
+          <div class="action-box">
+            <span class="annot">action</span>
+            <div class="action-btn">パスワードを再発行</div>
+            <div class="helper">実行すると新しい初期パスワードが発行され、画面に一度だけ表示されます。本人への伝達（口頭・チャットなど）は運営が直接行ってください（自動メール送信は行いません）。</div>
+          </div>
+
+          <div class="danger-box">
+            <span class="annot">danger</span>
+            <span class="danger-link">この保護者を削除する</span>
+          </div>
+
+        </div>
+
+        <div class="footer-bar">
+          <div class="save-btn">保存</div>
+          <div class="cancel-link">キャンセル</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      ※未保存の変更がある状態で「‹ 保護者一覧」に戻ろうとした場合は確認ダイアログを想定しています。<br>
+      ※会員番号はシステム発行のため編集不可。新規登録時はこの欄自体が非表示で、保存後に発番されます。<br>
+      ※新規登録時は「パスワードを再発行」の代わりに「初期パスワードが発行されます」という案内のみを表示し、保存後に発行された初期パスワードを一度だけ画面に表示します（削除の項目も新規登録時は非表示）。<br>
+      ※「生徒」欄は表示のみで、この画面からは編集できません（生徒側の登録・編集画面で紐付けを行います）。<br>
+      ※「パスワードを再発行」「この保護者を削除する」はいずれも確認ダイアログを経てから実行します（削除は論理削除＝deleted_at）。
+    </div>
+  </div>
+
+</body>
+</html>

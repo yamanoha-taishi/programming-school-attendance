@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>WF: 生徒登録・編集画面（運営・スマホ版）</title>
+<style>
+  :root{
+    --line:#2b2b2b;
+    --gray1:#f4f4f4;
+    --gray2:#e4e4e4;
+    --gray3:#cfcfcf;
+    --annot:#8a8a8a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Hiragino Sans","Helvetica Neue",Arial,sans-serif;
+    background:#fafafa;
+    margin:0;
+    padding:32px;
+    display:grid;
+    grid-template-columns:280px 420px;
+    column-gap:40px;
+    align-items:start;
+    color:#1a1a1a;
+  }
+  .side{
+    grid-column:1;
+    grid-row:1;
+  }
+  .main{
+    grid-column:2;
+    grid-row:1;
+  }
+  .side h1{
+    font-size:18px;
+    margin:0 0 4px;
+  }
+  .side .sub{
+    font-size:12px;
+    color:#666;
+    margin-bottom:20px;
+  }
+  .side h2{
+    font-size:13px;
+    margin:20px 0 8px;
+    border-bottom:1px solid #ccc;
+    padding-bottom:4px;
+  }
+  .legend-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:11px;
+    margin-bottom:6px;
+    color:#444;
+  }
+  .legend-tag{
+    font-family:monospace;
+    background:#fff;
+    border:1px solid var(--annot);
+    color:var(--annot);
+    padding:1px 5px;
+    border-radius:3px;
+    font-size:10px;
+    white-space:nowrap;
+  }
+
+  /* --- phone frame --- */
+  .phone{
+    width:375px;
+    border:3px solid var(--line);
+    border-radius:28px;
+    padding:10px;
+    background:#fff;
+  }
+  .screen{
+    border:1px solid var(--line);
+    border-radius:16px;
+    overflow:hidden;
+    position:relative;
+    height:780px;
+    display:flex;
+    flex-direction:column;
+  }
+  .content{
+    flex:1;
+    overflow-y:auto;
+  }
+  .annot{
+    position:absolute;
+    top:2px;
+    right:6px;
+    font-family:monospace;
+    font-size:9px;
+    color:var(--annot);
+    letter-spacing:.02em;
+  }
+
+  .status-bar{
+    height:20px;
+    background:var(--gray1);
+    border-bottom:1px solid var(--line);
+  }
+  .app-header{
+    padding:10px 12px;
+    border-bottom:1px solid var(--line);
+    position:relative;
+  }
+  .back-row{
+    font-size:11px;
+    color:#666;
+    margin-bottom:6px;
+  }
+  .title{
+    font-size:15px;
+    font-weight:bold;
+  }
+
+  .field{
+    margin:14px 12px 0;
+    position:relative;
+  }
+  .field label{
+    display:block;
+    font-size:11px;
+    color:#555;
+    margin-bottom:4px;
+  }
+  .field label .opt{
+    color:#999;
+    font-weight:normal;
+  }
+  .field input, .field textarea{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:8px 10px;
+    font-size:13px;
+    font-family:inherit;
+    background:#fff;
+  }
+  .field textarea{
+    height:56px;
+    resize:none;
+  }
+  .select-box{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:8px 10px;
+    font-size:13px;
+    background:#fff;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .select-box .cap{
+    font-size:11px;
+    color:#666;
+    font-weight:normal;
+  }
+  .select-box .cap.full{
+    font-weight:bold;
+  }
+  .helper{
+    font-size:10px;
+    color:#888;
+    margin-top:4px;
+    line-height:1.5;
+  }
+  .helper.warn{
+    font-weight:bold;
+    color:#000;
+  }
+
+  .section-title{
+    margin:20px 12px 4px;
+    font-size:11px;
+    font-weight:bold;
+    color:#555;
+    border-bottom:1px solid var(--gray3);
+    padding-bottom:4px;
+  }
+
+  .readonly-box{
+    margin:12px 12px 0;
+    background:var(--gray1);
+    border:1px solid var(--gray3);
+    border-radius:6px;
+    padding:8px 10px;
+    font-size:12px;
+    color:#444;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    position:relative;
+  }
+  .readonly-box .change-link{
+    font-size:11px;
+    text-decoration:underline;
+    color:#333;
+    white-space:nowrap;
+  }
+
+  .danger-box{
+    margin:20px 12px 16px;
+    padding-top:10px;
+    border-top:1px dashed var(--gray3);
+    position:relative;
+  }
+  .danger-link{
+    font-size:12px;
+    text-decoration:underline;
+    color:#333;
+  }
+
+  .footer-bar{
+    border-top:1px solid var(--line);
+    padding:10px 12px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+  }
+  .save-btn{
+    flex:1;
+    text-align:center;
+    background:var(--line);
+    color:#fff;
+    border-radius:6px;
+    padding:10px 0;
+    font-size:13px;
+    font-weight:bold;
+  }
+  .cancel-link{
+    font-size:12px;
+    color:#555;
+    padding:10px 8px;
+  }
+
+  .caption{
+    font-size:11px;
+    color:#666;
+    margin-top:10px;
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+  <div class="side">
+    <h1>WF：生徒登録・編集画面</h1>
+    <div class="sub">運営向け／スマホ／full_access のみ</div>
+
+    <h2>アノテーションの読み方</h2>
+    <div class="legend-item"><span class="legend-tag">nav</span> タップで画面遷移する要素</div>
+    <div class="legend-item"><span class="legend-tag">input</span> 入力できる項目</div>
+    <div class="legend-item"><span class="legend-tag">readonly</span> 編集できない表示専用の項目</div>
+    <div class="legend-item"><span class="legend-tag">danger</span> 削除など取り消しにくい操作</div>
+  </div>
+
+  <div class="main">
+    <div class="phone">
+      <div class="screen">
+        <div class="status-bar"></div>
+
+        <div class="app-header">
+          <span class="annot">nav</span>
+          <div class="back-row">‹ 生徒一覧</div>
+          <div class="title">生徒を編集</div>
+        </div>
+
+        <div class="content">
+
+          <div class="field">
+            <span class="annot">input</span>
+            <label>氏名</label>
+            <input type="text" value="佐藤 はると">
+          </div>
+
+          <div class="field">
+            <label>名前カナ</label>
+            <input type="text" value="サトウ ハルト">
+          </div>
+
+          <div class="field">
+            <label>学年</label>
+            <div class="select-box">小2 <span class="chevron">▼</span></div>
+          </div>
+
+          <div class="field">
+            <label>クラス</label>
+            <div class="select-box">
+              基礎クラス1組
+              <span class="cap">5/6名</span>
+            </div>
+            <div class="helper">定員6名に対する現在の在籍数です。満員のクラスを選ぶと登録できません。</div>
+          </div>
+
+          <div class="field">
+            <label>性別 <span class="opt">（任意）</span></label>
+            <div class="select-box">男の子 <span class="chevron">▼</span></div>
+          </div>
+
+          <div class="readonly-box">
+            <span class="annot">readonly</span>
+            <span>保護者：佐藤 陽子</span>
+            <span class="change-link">変更</span>
+          </div>
+
+          <div class="field">
+            <label>特記事項 <span class="opt">（任意）</span></label>
+            <textarea placeholder="特記事項があれば入力"></textarea>
+          </div>
+
+          <div class="section-title">休会</div>
+
+          <div class="field">
+            <label>休会開始月 <span class="opt">（任意）</span></label>
+            <div class="select-box">未設定 <span class="chevron">▼</span></div>
+          </div>
+
+          <div class="field">
+            <label>休会終了月 <span class="opt">（任意）</span></label>
+            <div class="select-box">未設定 <span class="chevron">▼</span></div>
+            <div class="helper">開始月だけ入力すると、終了月が決まるまで休会が継続します（再開の連絡があり次第、終了月を設定します）。</div>
+          </div>
+
+          <div class="danger-box">
+            <span class="annot">danger</span>
+            <span class="danger-link">この生徒を削除する</span>
+          </div>
+
+        </div>
+
+        <div class="footer-bar">
+          <div class="save-btn">保存</div>
+          <div class="cancel-link">キャンセル</div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      ※「‹ 生徒一覧」で一覧画面に戻ります。保護者編集画面の「生徒」欄から開いた場合は、その保護者編集画面に戻ります。<br>
+      ※性別のみ任意でNULL許容です。<br>
+      ※クラスの選択欄には現在の在籍数／定員（6名）を表示し、満員のクラスを選ぼうとした場合は保存時にエラーとして扱います。<br>
+      ※保護者は新規登録・変更のどちらも、既存の保護者を検索して選ぶ形式（別画面）を想定しており、この画面では選択済みの保護者を表示のみします。<br>
+      ※「この生徒を削除する」は論理削除（deleted_at）です。確認ダイアログを経てから実行します。退会処理もこのボタンで行う想定です（誤登録の訂正と退会を同じ論理削除で扱い、レコードは残るため再入会時に過去データを参照できます）。新規登録時はこの項目は非表示です。<br>
+      ※「休会」はstudentsテーブルのleave_from／leave_untilに対応します。月謝が月単位のため入力は年月のみを選び、保存時に開始月の1日・終了月の末日に変換します。<br>
+      ※休会終了月は任意です。未設定のままだと休会開始月の1日以降ずっと休会中として扱われ、出席記録・一覧画面には表示されません。休会中もクラス定員としては引き続きカウントします。
+    </div>
+  </div>
+
+</body>
+</html>

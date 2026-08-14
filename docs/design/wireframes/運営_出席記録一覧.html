@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>WF: 出席記録・一覧画面（運営・スマホ版）</title>
+<style>
+  :root{
+    --line:#2b2b2b;
+    --gray1:#f4f4f4;
+    --gray2:#e4e4e4;
+    --gray3:#cfcfcf;
+    --annot:#8a8a8a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Hiragino Sans","Helvetica Neue",Arial,sans-serif;
+    background:#fafafa;
+    margin:0;
+    padding:32px;
+    display:grid;
+    grid-template-columns:280px 420px;
+    column-gap:40px;
+    align-items:start;
+    color:#1a1a1a;
+  }
+  .side{
+    grid-column:1;
+    grid-row:1;
+  }
+  .main{
+    grid-column:2;
+    grid-row:1;
+  }
+  .side h1{
+    font-size:18px;
+    margin:0 0 4px;
+  }
+  .side .sub{
+    font-size:12px;
+    color:#666;
+    margin-bottom:20px;
+  }
+  .side h2{
+    font-size:13px;
+    margin:20px 0 8px;
+    border-bottom:1px solid #ccc;
+    padding-bottom:4px;
+  }
+  .legend-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:11px;
+    margin-bottom:6px;
+    color:#444;
+  }
+  .legend-tag{
+    font-family:monospace;
+    background:#fff;
+    border:1px solid var(--annot);
+    color:var(--annot);
+    padding:1px 5px;
+    border-radius:3px;
+    font-size:10px;
+    white-space:nowrap;
+  }
+
+  /* --- phone frame --- */
+  .phone{
+    width:375px;
+    border:3px solid var(--line);
+    border-radius:28px;
+    padding:10px;
+    background:#fff;
+  }
+  .screen{
+    border:1px solid var(--line);
+    border-radius:16px;
+    overflow:hidden;
+    position:relative;
+  }
+  .scroll-area{
+    max-height:600px;
+    overflow-y:auto;
+  }
+  .annot{
+    position:absolute;
+    top:2px;
+    right:6px;
+    font-family:monospace;
+    font-size:9px;
+    color:var(--annot);
+    letter-spacing:.02em;
+  }
+
+  .label-with-hint{
+    display:flex;
+    align-items:center;
+    gap:5px;
+  }
+  .hint-icon{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:16px;
+    height:16px;
+    border:1px solid #777;
+    border-radius:50%;
+    font-size:10px;
+    color:#333;
+    cursor:pointer;
+    background:var(--gray2);
+    font-weight:bold;
+  }
+
+  /* ヒントのモーダル */
+  .modal-overlay{
+    display:none;
+    position:absolute;
+    inset:0;
+    background:rgba(0,0,0,.35);
+    z-index:10;
+    align-items:flex-end;
+  }
+  .modal-overlay.open{
+    display:flex;
+  }
+  .modal-card{
+    width:100%;
+    background:#fff;
+    border-top:1px solid var(--line);
+    border-radius:16px 16px 0 0;
+    padding:16px 16px 20px;
+  }
+  .modal-card .modal-title{
+    font-size:14px;
+    font-weight:bold;
+    margin-bottom:10px;
+  }
+  .modal-card .modal-body{
+    font-size:12px;
+    line-height:1.7;
+    color:#333;
+  }
+  .modal-card .modal-close{
+    margin-top:14px;
+    text-align:center;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:8px 0;
+    font-size:12px;
+    font-weight:bold;
+  }
+
+  /* header */
+  .status-bar{
+    height:20px;
+    background:var(--gray1);
+    border-bottom:1px solid var(--line);
+  }
+  .app-header{
+    padding:10px 12px;
+    border-bottom:1px solid var(--line);
+    position:relative;
+  }
+  .date-nav{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:14px;
+    font-weight:bold;
+  }
+  .date-nav .arrow{
+    font-size:14px;
+    font-weight:normal;
+    color:#777;
+    padding:2px 10px;
+    border:1px solid var(--line);
+    border-radius:4px;
+  }
+
+  .day-summary{
+    margin-top:8px;
+    display:flex;
+    gap:8px;
+    font-size:11px;
+    color:#444;
+  }
+  .day-summary .pill{
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:2px 8px;
+  }
+  .day-summary .pill.warn{
+    font-weight:bold;
+    background:var(--gray2);
+    border-width:2px;
+  }
+
+  /* class section */
+  .class-header{
+    background:var(--gray2);
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+    padding:6px 12px;
+    position:relative;
+  }
+  .class-header .title-line{
+    display:flex;
+    justify-content:space-between;
+    font-size:12px;
+    font-weight:bold;
+  }
+  .class-header .time{
+    font-weight:normal;
+    color:#444;
+  }
+  .class-header .class-stats{
+    margin-top:2px;
+    font-size:10px;
+    color:#555;
+  }
+  .class-header .class-stats b{
+    color:#000;
+  }
+
+  /* student rows - 未記録／編集中（展開） */
+  .student-row{
+    border-bottom:1px solid var(--gray3);
+    padding:10px 12px;
+    position:relative;
+  }
+  .student-row.expanded{
+    background:var(--gray1);
+  }
+  .row-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .name-block .name-line{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .name-block .name{
+    font-size:14px;
+    font-weight:bold;
+  }
+  .name-block .kana{
+    font-size:10px;
+    color:#888;
+  }
+  .late-tag{
+    font-size:9px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:1px 6px;
+    background:#fff;
+  }
+  .badge{
+    font-size:10px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:2px 8px;
+    background:var(--gray2);
+  }
+
+  .quick-actions{
+    display:flex;
+    gap:6px;
+    margin-top:8px;
+  }
+  .qbtn{
+    flex:1;
+    text-align:center;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:7px 0;
+    font-size:12px;
+    background:#fff;
+  }
+  .qbtn.selected{
+    background:var(--line);
+    color:#fff;
+  }
+
+  .expand-panel{
+    margin-top:10px;
+    border-top:1px dashed var(--gray3);
+    padding-top:8px;
+  }
+  .expand-label{
+    font-size:10px;
+    color:#777;
+    margin-bottom:6px;
+    display:flex;
+    align-items:center;
+    gap:5px;
+  }
+  .makeup-actions{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .mbtn{
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:5px 10px;
+    font-size:11px;
+    background:#fff;
+  }
+  .mbtn.selected{
+    background:var(--line);
+    color:#fff;
+  }
+  .target-lesson-btn{
+    margin-top:10px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 12px;
+    font-size:12px;
+    font-weight:bold;
+    background:#fff;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    cursor:pointer;
+  }
+  .target-lesson-btn .chevron{
+    font-weight:normal;
+  }
+  .lesson-option{
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 12px;
+    font-size:12px;
+    margin-bottom:8px;
+    cursor:pointer;
+  }
+  .lesson-option:last-child{
+    margin-bottom:0;
+  }
+
+  /* student rows - 記録済み（折りたたみ） */
+  .student-row.collapsed{
+    padding:8px 12px;
+  }
+  .collapsed-line{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .collapsed-left{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .collapsed-left .name{
+    font-size:13px;
+  }
+  .collapsed-right{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .chevron{
+    font-size:12px;
+    color:#999;
+  }
+  .recorder-inline{
+    font-size:10px;
+    color:#888;
+    white-space:nowrap;
+    flex-shrink:0;
+  }
+
+  /* bottom tab bar */
+  .tabbar{
+    display:flex;
+    border-top:1px solid var(--line);
+    position:relative;
+  }
+  .tab{
+    flex:1;
+    text-align:center;
+    padding:10px 0 8px;
+    font-size:10px;
+    color:#777;
+  }
+  .tab svg{
+    width:22px;
+    height:22px;
+    margin:0 auto 4px;
+    display:block;
+  }
+  .tab.active{
+    color:#000;
+    font-weight:bold;
+  }
+
+  .caption{
+    font-size:11px;
+    color:#666;
+    margin-top:10px;
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+  <div class="side">
+    <h1>WF：出席記録・一覧画面</h1>
+    <div class="sub">運営向け／スマホ／full_access・attendance_only 共通</div>
+
+    <h2>アノテーションの読み方</h2>
+    <div class="legend-item"><span class="legend-tag">nav</span> タップで画面遷移する要素</div>
+    <div class="legend-item"><span class="legend-tag">quick action</span> 1タップで状態を確定させる操作</div>
+    <div class="legend-item"><span class="legend-tag">expand</span> 条件付きで表示が増える領域</div>
+    <div class="legend-item"><span class="legend-tag">collapsed</span> 記録済みで折りたたまれた行</div>
+    <div class="legend-item"><span class="legend-tag">summary</span> 出席／欠席／未記録の人数表示</div>
+    <div class="legend-item"><span class="legend-tag">info</span> タップで補足説明を表示する要素</div>
+    <div class="legend-item"><span class="legend-tag">readonly</span> 編集できない表示専用の項目</div>
+  </div>
+
+  <div class="main">
+    <div class="phone">
+      <div class="screen">
+        <div class="status-bar"></div>
+
+        <div class="app-header">
+          <span class="annot">nav</span>
+          <div class="date-nav">
+            <span class="arrow">◀</span>
+            8/13(木)
+            <span class="arrow">▶</span>
+          </div>
+          <div class="day-summary">
+            <span class="annot">summary</span>
+            <span class="pill">出席 3</span>
+            <span class="pill">欠席 2</span>
+            <span class="pill warn">未記録 8</span>
+          </div>
+        </div>
+
+        <div class="scroll-area">
+
+          <!-- 基礎クラス1組 -->
+          <div class="class-header">
+            <div class="title-line">
+              <span>基礎クラス1組</span>
+              <span class="time">15:00-16:00</span>
+            </div>
+            <div class="class-stats">出席3 ・ 欠席2 ・ <b>未記録1</b></div>
+          </div>
+
+          <!-- 記録済み：出席 -->
+          <div class="student-row collapsed">
+            <span class="annot">collapsed</span>
+            <div class="collapsed-line">
+              <div class="collapsed-left">
+                <span class="name">佐藤 はると</span>
+              </div>
+              <div class="collapsed-right">
+                <span class="badge">出席</span>
+                <span class="chevron">›</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 記録済み：出席（遅刻連絡あり） -->
+          <div class="student-row collapsed">
+            <div class="collapsed-line">
+              <div class="collapsed-left">
+                <span class="name">鈴木 ゆい</span>
+                <span class="late-tag">遅刻</span>
+              </div>
+              <div class="collapsed-right">
+                <span class="badge">出席</span>
+                <span class="chevron">›</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 記録済みの行を再度開いて修正中：欠席選択→補講予定を選択中 -->
+          <div class="student-row expanded">
+            <div class="row-top">
+              <span class="annot">readonly</span>
+              <div class="name-block">
+                <div class="name-line">
+                  <span class="name">高橋 そら</span>
+                </div>
+                <div class="kana">タカハシ ソラ</div>
+              </div>
+              <div class="recorder-inline">記録：山田 太郎</div>
+            </div>
+            <div class="quick-actions">
+              <span class="annot">quick action</span>
+              <div class="qbtn">出席</div>
+              <div class="qbtn selected">欠席</div>
+            </div>
+            <div class="expand-panel">
+              <span class="annot">expand</span>
+              <div class="expand-label">補講予定を選択 <span class="hint-icon" id="makeupHint">ⓘ</span></div>
+              <div class="makeup-actions">
+                <div class="mbtn selected">振替</div>
+                <div class="mbtn">30分前補講</div>
+                <div class="mbtn">未定</div>
+                <div class="mbtn">補講なし</div>
+              </div>
+              <div class="target-lesson-btn" id="targetLessonLink">
+                <span id="targetLessonLabel">対象の授業回を選択（振替先を指定）</span>
+                <span class="chevron">›</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 記録済み：出席 -->
+          <div class="student-row collapsed">
+            <div class="collapsed-line">
+              <div class="collapsed-left">
+                <span class="name">田中 みお</span>
+              </div>
+              <div class="collapsed-right">
+                <span class="badge">出席</span>
+                <span class="chevron">›</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 事前に保護者から欠席連絡あり（補講予定も登録済み）：記録済みとして折りたたみ表示 -->
+          <div class="student-row collapsed">
+            <span class="annot">collapsed</span>
+            <div class="collapsed-line">
+              <div class="collapsed-left">
+                <span class="name">伊藤 あおい</span>
+                <span class="late-tag">事前連絡</span>
+              </div>
+              <div class="collapsed-right">
+                <span class="badge">欠席</span>
+                <span class="badge">振替</span>
+                <span class="chevron">›</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 未記録 -->
+          <div class="student-row">
+            <div class="row-top">
+              <div class="name-block">
+                <div class="name-line">
+                  <span class="name">渡辺 ゆうと</span>
+                </div>
+                <div class="kana">ワタナベ ユウト</div>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <div class="qbtn">出席</div>
+              <div class="qbtn">欠席</div>
+            </div>
+          </div>
+
+          <!-- 基礎クラス2組 -->
+          <div class="class-header">
+            <div class="title-line">
+              <span>基礎クラス2組</span>
+              <span class="time">16:30-17:30</span>
+            </div>
+            <div class="class-stats">出席0 ・ 欠席0 ・ <b>未記録3</b></div>
+          </div>
+
+          <div class="student-row">
+            <div class="row-top">
+              <div class="name-block">
+                <div class="name-line"><span class="name">中村 りく</span></div>
+                <div class="kana">ナカムラ リク</div>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <div class="qbtn">出席</div>
+              <div class="qbtn">欠席</div>
+            </div>
+          </div>
+
+          <div class="student-row">
+            <div class="row-top">
+              <div class="name-block">
+                <div class="name-line"><span class="name">小林 ひな</span></div>
+                <div class="kana">コバヤシ ヒナ</div>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <div class="qbtn">出席</div>
+              <div class="qbtn">欠席</div>
+            </div>
+          </div>
+
+          <div class="student-row">
+            <div class="row-top">
+              <div class="name-block">
+                <div class="name-line"><span class="name">加藤 みなと</span></div>
+                <div class="kana">カトウ ミナト</div>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <div class="qbtn">出席</div>
+              <div class="qbtn">欠席</div>
+            </div>
+          </div>
+
+          <!-- 基礎クラス3組 -->
+          <div class="class-header">
+            <div class="title-line">
+              <span>基礎クラス3組</span>
+              <span class="time">18:00-19:00</span>
+            </div>
+            <div class="class-stats">出席0 ・ 欠席0 ・ <b>未記録2</b></div>
+          </div>
+
+          <div class="student-row">
+            <div class="row-top">
+              <div class="name-block">
+                <div class="name-line"><span class="name">斎藤 あかり</span></div>
+                <div class="kana">サイトウ アカリ</div>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <div class="qbtn">出席</div>
+              <div class="qbtn">欠席</div>
+            </div>
+          </div>
+
+          <div class="student-row">
+            <div class="row-top">
+              <div class="name-block">
+                <div class="name-line"><span class="name">山口 そうた</span></div>
+                <div class="kana">ヤマグチ ソウタ</div>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <div class="qbtn">出席</div>
+              <div class="qbtn">欠席</div>
+            </div>
+          </div>
+
+          <!-- 応用クラス -->
+          <div class="class-header">
+            <div class="title-line">
+              <span>応用クラス</span>
+              <span class="time">19:30-21:00</span>
+            </div>
+            <div class="class-stats">出席0 ・ 欠席0 ・ <b>未記録2</b></div>
+          </div>
+
+          <div class="student-row">
+            <div class="row-top">
+              <div class="name-block">
+                <div class="name-line"><span class="name">松本 ののか</span></div>
+                <div class="kana">マツモト ノノカ</div>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <div class="qbtn">出席</div>
+              <div class="qbtn">欠席</div>
+            </div>
+          </div>
+
+          <div class="student-row">
+            <div class="row-top">
+              <div class="name-block">
+                <div class="name-line"><span class="name">木村 れん</span></div>
+                <div class="kana">キムラ レン</div>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <div class="qbtn">出席</div>
+              <div class="qbtn">欠席</div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="tabbar">
+          <div class="tab active">
+            <svg viewBox="0 0 24 24">
+              <rect x="5" y="4" width="14" height="17" rx="2" fill="currentColor"></rect>
+              <rect x="9" y="2" width="6" height="4" rx="1" fill="currentColor"></rect>
+              <line x1="8" y1="11" x2="16" y2="11" stroke="#fff" stroke-width="1.6" stroke-linecap="round"></line>
+              <line x1="8" y1="15" x2="16" y2="15" stroke="#fff" stroke-width="1.6" stroke-linecap="round"></line>
+            </svg>
+            出席記録
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24">
+              <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="4" y1="6" x2="20" y2="6"></line>
+                <line x1="4" y1="12" x2="20" y2="12"></line>
+                <line x1="4" y1="18" x2="20" y2="18"></line>
+              </g>
+              <circle cx="9" cy="6" r="2.4" fill="#fff" stroke="currentColor" stroke-width="2"></circle>
+              <circle cx="15" cy="12" r="2.4" fill="#fff" stroke="currentColor" stroke-width="2"></circle>
+              <circle cx="7" cy="18" r="2.4" fill="#fff" stroke="currentColor" stroke-width="2"></circle>
+            </svg>
+            管理
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="4"></circle>
+              <path d="M4 20c0-4 4-7 8-7s8 3 8 7"></path>
+            </svg>
+            プロフィール
+          </div>
+        </div>
+
+        <div class="modal-overlay" id="makeupModal">
+          <div class="modal-card">
+            <div class="modal-title">補講予定について</div>
+            <div class="modal-body">
+              <strong>振替</strong>：他の同じ授業実施日（別クラス・別日程の同内容の授業）に出席すること<br><br>
+              <strong>30分前補講</strong>：次回以降の授業に30分早く来て、前回休んだ分＋当日の授業を受けること<br><br>
+              <strong>未定</strong>：振替・30分前補講のどちらにするか決まっておらず、運営が後日対応するもの<br><br>
+              <strong>補講なし</strong>：補講を行わない
+            </div>
+            <div class="modal-close" id="makeupModalClose">閉じる</div>
+          </div>
+        </div>
+
+        <div class="modal-overlay" id="lessonPickerModal">
+          <div class="modal-card">
+            <div class="modal-title">振替先の授業回を選択</div>
+            <div class="modal-body">
+              <div class="lesson-option">8/15(土)　10:00-11:00　基礎クラス（土曜）</div>
+              <div class="lesson-option">8/16(日)　10:00-11:00　基礎クラス（日曜）</div>
+              <div class="lesson-option">8/20(木)　15:00-16:00　基礎クラス1組</div>
+            </div>
+            <div class="modal-close" id="lessonPickerClose">キャンセル</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      ※各クラスの定員は最大6名（基礎・応用とも共通）。その日の全クラスを上から順にスクロールで表示します。<br>
+      ※出席／欠席を記録すると行は折りたたまれ、名前とバッジのみの1行表示になります。タップすると再度開いて修正できます。既に記録済みの行を開いた場合のみ、名前と同じ行の右側に記録した担当スタッフ名（attendances.staff_id）を「記録：氏名」の形で表示します（新規記録時は未表示）。<br>
+      ※「欠席」を選択すると、その行の下に補講予定の選択欄（振替／30分前補講／未定／補講なし）が展開します。<br>
+      ※出欠サマリー（出席／欠席／未記録の人数）は、当日全体とクラスごとの両方で集計・表示します。<br>
+      ※保護者から事前に欠席連絡があり補講予定まで決まっている場合は、記録済みとして折りたたみ表示され、「事前連絡」タグで運営が当日記録したものと区別します。<br>
+      ※「→ 対象の授業回を選択」は、lessons（授業回）の今後の日程一覧から選択する形式で、選択結果はattendances.makeup_lesson_idに保存します。「振替」「30分前補講」を選んだ場合のみ使用します。<br>
+      ※休会開始月以降（終了月が未設定または当日を含む）の生徒はこの画面に表示されません。休会中もクラスの定員としては引き続きカウントします。
+    </div>
+  </div>
+
+<script>
+  var makeupHint = document.getElementById('makeupHint');
+  var makeupModal = document.getElementById('makeupModal');
+  var makeupModalClose = document.getElementById('makeupModalClose');
+  makeupHint.addEventListener('click', function(){ makeupModal.classList.add('open'); });
+  makeupModalClose.addEventListener('click', function(){ makeupModal.classList.remove('open'); });
+  makeupModal.addEventListener('click', function(e){ if(e.target === makeupModal){ makeupModal.classList.remove('open'); } });
+
+  var targetLessonLink = document.getElementById('targetLessonLink');
+  var targetLessonLabel = document.getElementById('targetLessonLabel');
+  var lessonPickerModal = document.getElementById('lessonPickerModal');
+  var lessonPickerClose = document.getElementById('lessonPickerClose');
+  var lessonOptions = lessonPickerModal.querySelectorAll('.lesson-option');
+
+  targetLessonLink.addEventListener('click', function(){ lessonPickerModal.classList.add('open'); });
+  lessonPickerClose.addEventListener('click', function(){ lessonPickerModal.classList.remove('open'); });
+  lessonPickerModal.addEventListener('click', function(e){ if(e.target === lessonPickerModal){ lessonPickerModal.classList.remove('open'); } });
+  lessonOptions.forEach(function(opt){
+    opt.addEventListener('click', function(){
+      targetLessonLabel.textContent = '対象の授業回：' + opt.textContent;
+      lessonPickerModal.classList.remove('open');
+    });
+  });
+</script>
+</body>
+</html>

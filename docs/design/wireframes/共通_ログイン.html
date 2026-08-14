@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>WF: ログイン画面（運営・保護者共通／スマホ版）</title>
+<style>
+  :root{
+    --line:#2b2b2b;
+    --gray1:#f4f4f4;
+    --gray2:#e4e4e4;
+    --gray3:#cfcfcf;
+    --annot:#8a8a8a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Hiragino Sans","Helvetica Neue",Arial,sans-serif;
+    background:#fafafa;
+    margin:0;
+    padding:32px;
+    display:grid;
+    grid-template-columns:280px 420px;
+    column-gap:40px;
+    align-items:start;
+    color:#1a1a1a;
+  }
+  .side{
+    grid-column:1;
+    grid-row:1;
+  }
+  .main{
+    grid-column:2;
+    grid-row:1;
+  }
+  .side h1{
+    font-size:18px;
+    margin:0 0 4px;
+  }
+  .side .sub{
+    font-size:12px;
+    color:#666;
+    margin-bottom:20px;
+  }
+  .side h2{
+    font-size:13px;
+    margin:20px 0 8px;
+    border-bottom:1px solid #ccc;
+    padding-bottom:4px;
+  }
+  .legend-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:11px;
+    margin-bottom:6px;
+    color:#444;
+  }
+  .legend-tag{
+    font-family:monospace;
+    background:#fff;
+    border:1px solid var(--annot);
+    color:var(--annot);
+    padding:1px 5px;
+    border-radius:3px;
+    font-size:10px;
+    white-space:nowrap;
+  }
+
+  /* --- phone frame --- */
+  .phone{
+    width:375px;
+    border:3px solid var(--line);
+    border-radius:28px;
+    padding:10px;
+    background:#fff;
+  }
+  .screen{
+    border:1px solid var(--line);
+    border-radius:16px;
+    overflow:hidden;
+    position:relative;
+    height:780px;
+    display:flex;
+    flex-direction:column;
+  }
+  .content{
+    flex:1;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+  }
+  .annot{
+    position:absolute;
+    top:2px;
+    right:6px;
+    font-family:monospace;
+    font-size:9px;
+    color:var(--annot);
+    letter-spacing:.02em;
+  }
+
+  .status-bar{
+    height:20px;
+    background:var(--gray1);
+    border-bottom:1px solid var(--line);
+  }
+
+  .brand{
+    text-align:center;
+    margin-bottom:32px;
+  }
+  .brand-icon{
+    width:56px;
+    height:56px;
+    background:#0f766e;
+    border-radius:14px;
+    margin:0 auto 12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#fff;
+  }
+  .brand-icon svg{
+    width:30px;
+    height:30px;
+  }
+  .brand-name{
+    font-size:15px;
+    font-weight:bold;
+    line-height:1.4;
+  }
+
+  .error-banner{
+    margin:0 12px 16px;
+    background:#fdecec;
+    border:1px solid #d33;
+    color:#a11;
+    border-radius:6px;
+    padding:10px 12px;
+    font-size:11px;
+    line-height:1.5;
+    position:relative;
+  }
+
+  .field{
+    margin:14px 12px 0;
+    position:relative;
+  }
+  .field label{
+    display:block;
+    font-size:11px;
+    color:#555;
+    margin-bottom:4px;
+  }
+  .field input{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:9px 10px;
+    font-size:13px;
+    font-family:inherit;
+    background:#fff;
+  }
+  .helper{
+    font-size:10px;
+    color:#888;
+    margin-top:4px;
+    line-height:1.5;
+  }
+
+  .action-box{
+    margin:22px 12px 0;
+    position:relative;
+  }
+  .login-btn{
+    text-align:center;
+    background:var(--line);
+    color:#fff;
+    border-radius:6px;
+    padding:12px 0;
+    font-size:14px;
+    font-weight:bold;
+  }
+
+  .forgot-row{
+    margin:16px 12px 0;
+    text-align:center;
+    position:relative;
+  }
+  .forgot-link{
+    font-size:12px;
+    color:#555;
+    text-decoration:underline;
+  }
+
+  .caption{
+    font-size:11px;
+    color:#666;
+    margin-top:10px;
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+  <div class="side">
+    <h1>WF：ログイン画面</h1>
+    <div class="sub">運営・保護者共通／スマホ／未ログイン</div>
+
+    <h2>アノテーションの読み方</h2>
+    <div class="legend-item"><span class="legend-tag">input</span> 入力できる項目</div>
+    <div class="legend-item"><span class="legend-tag">action</span> 確認の上で実行する操作</div>
+    <div class="legend-item"><span class="legend-tag">nav</span> タップで画面遷移する要素</div>
+    <div class="legend-item"><span class="legend-tag">expand</span> 条件付きで表示が増える領域</div>
+  </div>
+
+  <div class="main">
+    <div class="phone">
+      <div class="screen">
+        <div class="status-bar"></div>
+
+        <div class="content">
+
+          <div class="brand">
+            <div class="brand-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="3" width="8" height="8" rx="1.5"></rect>
+                <rect x="13" y="3" width="8" height="8" rx="1.5"></rect>
+                <rect x="3" y="13" width="8" height="8" rx="1.5"></rect>
+                <rect x="13" y="13" width="8" height="8" rx="1.5"></rect>
+              </svg>
+            </div>
+            <div class="brand-name">プログラミング教室<br>出席管理</div>
+          </div>
+
+          <div class="error-banner">
+            <span class="annot">expand</span>
+            会員番号またはパスワードが正しくありません。
+          </div>
+
+          <div class="field">
+            <span class="annot">input</span>
+            <label>会員番号</label>
+            <input type="text" placeholder="例：0001">
+          </div>
+
+          <div class="field">
+            <label>パスワード</label>
+            <input type="text" placeholder="••••••••">
+          </div>
+
+          <div class="action-box">
+            <span class="annot">action</span>
+            <div class="login-btn">ログイン</div>
+          </div>
+
+          <div class="forgot-row">
+            <span class="annot">nav</span>
+            <span class="forgot-link">パスワードをお忘れの方はこちら</span>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+    <div class="caption">
+      ※保護者・運営スタッフとも会員番号＋パスワードでログインします。入力された会員番号でguardians.member_code／staff.member_codeの両方を検索し、一致した方のテーブルで認証します（会員番号は両テーブルを合わせて一意なため、両方に一致することはありません。メールアドレスはログインには使用しません）。<br>
+      ※認証後、一致したテーブルで遷移先を分岐します。guardians→保護者向け（出席予定タブ）、staff→運営向け（出席記録タブ、role値でタブ構成を出し分け）。<br>
+      ※エラーバナーは失敗時のみ表示する条件付き要素です（WFでは常時表示）。会員番号・パスワードのどちらが誤りかは区別せず同一文言にします。<br>
+      ※「パスワードをお忘れの方はこちら」は、メールアドレス登録済みの場合（保護者・運営スタッフとも）はセルフサービス再設定、未登録の場合は運営へ連絡する案内を出す想定です（再設定フローは別画面のためスコープ外）。
+    </div>
+  </div>
+
+</body>
+</html>

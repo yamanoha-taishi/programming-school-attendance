@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>WF: 管理メニュー画面（運営・スマホ版）</title>
+<style>
+  :root{
+    --line:#2b2b2b;
+    --gray1:#f4f4f4;
+    --gray2:#e4e4e4;
+    --gray3:#cfcfcf;
+    --annot:#8a8a8a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Hiragino Sans","Helvetica Neue",Arial,sans-serif;
+    background:#fafafa;
+    margin:0;
+    padding:32px;
+    display:grid;
+    grid-template-columns:280px 420px;
+    column-gap:40px;
+    align-items:start;
+    color:#1a1a1a;
+  }
+  .side{
+    grid-column:1;
+    grid-row:1;
+  }
+  .main{
+    grid-column:2;
+    grid-row:1;
+  }
+  .side h1{
+    font-size:18px;
+    margin:0 0 4px;
+  }
+  .side .sub{
+    font-size:12px;
+    color:#666;
+    margin-bottom:20px;
+  }
+  .side h2{
+    font-size:13px;
+    margin:20px 0 8px;
+    border-bottom:1px solid #ccc;
+    padding-bottom:4px;
+  }
+  .legend-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:11px;
+    margin-bottom:6px;
+    color:#444;
+  }
+  .legend-tag{
+    font-family:monospace;
+    background:#fff;
+    border:1px solid var(--annot);
+    color:var(--annot);
+    padding:1px 5px;
+    border-radius:3px;
+    font-size:10px;
+    white-space:nowrap;
+  }
+
+  /* --- phone frame --- */
+  .phone{
+    width:375px;
+    border:3px solid var(--line);
+    border-radius:28px;
+    padding:10px;
+    background:#fff;
+  }
+  .screen{
+    border:1px solid var(--line);
+    border-radius:16px;
+    overflow:hidden;
+    position:relative;
+    height:780px;
+    display:flex;
+    flex-direction:column;
+  }
+  .content{
+    flex:1;
+  }
+  .annot{
+    position:absolute;
+    top:2px;
+    right:6px;
+    font-family:monospace;
+    font-size:9px;
+    color:var(--annot);
+    letter-spacing:.02em;
+  }
+
+  .status-bar{
+    height:20px;
+    background:var(--gray1);
+    border-bottom:1px solid var(--line);
+  }
+  .app-header{
+    padding:10px 12px 8px;
+    border-bottom:1px solid var(--line);
+    font-size:12px;
+    font-weight:normal;
+    color:#777;
+  }
+
+  .menu-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:16px 14px;
+    border-bottom:1px solid var(--gray3);
+    font-size:14px;
+    position:relative;
+  }
+  .menu-row .chevron{
+    color:#999;
+    font-size:14px;
+  }
+
+  /* bottom tab bar */
+  .tabbar{
+    display:flex;
+    border-top:1px solid var(--line);
+  }
+  .tab{
+    flex:1;
+    text-align:center;
+    padding:10px 0 8px;
+    font-size:10px;
+    color:#777;
+  }
+  .tab svg{
+    width:22px;
+    height:22px;
+    margin:0 auto 4px;
+    display:block;
+  }
+  .tab.active{
+    color:#000;
+    font-weight:bold;
+  }
+
+  .caption{
+    font-size:11px;
+    color:#666;
+    margin-top:10px;
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+  <div class="side">
+    <h1>WF：管理メニュー画面</h1>
+    <div class="sub">運営向け／スマホ／full_access のみ（attendance_onlyには非表示）</div>
+
+    <h2>アノテーションの読み方</h2>
+    <div class="legend-item"><span class="legend-tag">nav</span> タップで画面遷移する要素</div>
+  </div>
+
+  <div class="main">
+    <div class="phone">
+      <div class="screen">
+        <div class="status-bar"></div>
+
+        <div class="content">
+          <div class="app-header">管理メニュー</div>
+
+          <div class="menu-row">
+            <span class="annot">nav</span>
+            保護者一覧
+            <span class="chevron">›</span>
+          </div>
+          <div class="menu-row">
+            生徒一覧
+            <span class="chevron">›</span>
+          </div>
+          <div class="menu-row">
+            スタッフ一覧
+            <span class="chevron">›</span>
+          </div>
+        </div>
+
+        <div class="tabbar">
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="4" width="14" height="17" rx="2"></rect>
+              <rect x="9" y="2" width="6" height="4" rx="1"></rect>
+              <line x1="8" y1="11" x2="16" y2="11"></line>
+              <line x1="8" y1="15" x2="16" y2="15"></line>
+            </svg>
+            出席記録
+          </div>
+          <div class="tab active">
+            <svg viewBox="0 0 24 24">
+              <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="4" y1="6" x2="20" y2="6"></line>
+                <line x1="4" y1="12" x2="20" y2="12"></line>
+                <line x1="4" y1="18" x2="20" y2="18"></line>
+              </g>
+              <circle cx="9" cy="6" r="2.4" fill="currentColor"></circle>
+              <circle cx="15" cy="12" r="2.4" fill="currentColor"></circle>
+              <circle cx="7" cy="18" r="2.4" fill="currentColor"></circle>
+            </svg>
+            管理
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="4"></circle>
+              <path d="M4 20c0-4 4-7 8-7s8 3 8 7"></path>
+            </svg>
+            プロフィール
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      ※attendance_only権限のスタッフはこの画面にアクセスできないため、下部タブに「管理」は表示されません。
+    </div>
+  </div>
+
+</body>
+</html>

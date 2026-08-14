@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>WF: 欠席・遅刻・補講登録画面（保護者・スマホ版）</title>
+<style>
+  :root{
+    --line:#2b2b2b;
+    --gray1:#f4f4f4;
+    --gray2:#e4e4e4;
+    --gray3:#cfcfcf;
+    --annot:#8a8a8a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:"Hiragino Sans","Helvetica Neue",Arial,sans-serif;
+    background:#fafafa;
+    margin:0;
+    padding:32px;
+    display:grid;
+    grid-template-columns:280px 420px;
+    column-gap:40px;
+    align-items:start;
+    color:#1a1a1a;
+  }
+  .side{
+    grid-column:1;
+    grid-row:1;
+  }
+  .main{
+    grid-column:2;
+    grid-row:1;
+  }
+  .side h1{
+    font-size:18px;
+    margin:0 0 4px;
+  }
+  .side .sub{
+    font-size:12px;
+    color:#666;
+    margin-bottom:20px;
+  }
+  .side h2{
+    font-size:13px;
+    margin:20px 0 8px;
+    border-bottom:1px solid #ccc;
+    padding-bottom:4px;
+  }
+  .legend-item{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:11px;
+    margin-bottom:6px;
+    color:#444;
+  }
+  .legend-tag{
+    font-family:monospace;
+    background:#fff;
+    border:1px solid var(--annot);
+    color:var(--annot);
+    padding:1px 5px;
+    border-radius:3px;
+    font-size:10px;
+    white-space:nowrap;
+  }
+
+  /* --- phone frame --- */
+  .phone{
+    width:375px;
+    border:3px solid var(--line);
+    border-radius:28px;
+    padding:10px;
+    background:#fff;
+  }
+  .screen{
+    border:1px solid var(--line);
+    border-radius:16px;
+    overflow:hidden;
+    position:relative;
+    height:780px;
+    display:flex;
+    flex-direction:column;
+  }
+  .content{
+    flex:1;
+    overflow-y:auto;
+  }
+  .annot{
+    position:absolute;
+    top:2px;
+    right:6px;
+    font-family:monospace;
+    font-size:9px;
+    color:var(--annot);
+    letter-spacing:.02em;
+  }
+
+  .label-with-hint{
+    display:flex;
+    align-items:center;
+    gap:5px;
+  }
+  .hint-icon{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:16px;
+    height:16px;
+    border:1px solid #777;
+    border-radius:50%;
+    font-size:10px;
+    color:#333;
+    cursor:pointer;
+    background:var(--gray2);
+    font-weight:bold;
+  }
+
+  /* ヒントのモーダル */
+  .modal-overlay{
+    display:none;
+    position:absolute;
+    inset:0;
+    background:rgba(0,0,0,.35);
+    z-index:10;
+    align-items:flex-end;
+  }
+  .modal-overlay.open{
+    display:flex;
+  }
+  .modal-card{
+    width:100%;
+    background:#fff;
+    border-top:1px solid var(--line);
+    border-radius:16px 16px 0 0;
+    padding:16px 16px 20px;
+  }
+  .modal-card .modal-title{
+    font-size:14px;
+    font-weight:bold;
+    margin-bottom:10px;
+  }
+  .modal-card .modal-body{
+    font-size:12px;
+    line-height:1.7;
+    color:#333;
+  }
+  .modal-card .modal-close{
+    margin-top:14px;
+    text-align:center;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:8px 0;
+    font-size:12px;
+    font-weight:bold;
+  }
+  .lesson-option{
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 12px;
+    font-size:12px;
+    margin-bottom:8px;
+    cursor:pointer;
+  }
+  .lesson-option:last-child{
+    margin-bottom:0;
+  }
+
+  .status-bar{
+    height:20px;
+    background:var(--gray1);
+    border-bottom:1px solid var(--line);
+  }
+
+  .section-title{
+    margin:20px 12px 8px;
+    font-size:11px;
+    font-weight:bold;
+    color:#555;
+    border-bottom:1px solid var(--gray3);
+    padding-bottom:4px;
+  }
+  .section-title.first{
+    margin-top:16px;
+  }
+
+  .child-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin:0 12px;
+    padding:10px 0;
+    border-bottom:1px solid var(--gray3);
+    position:relative;
+  }
+  .checkbox{
+    width:18px;
+    height:18px;
+    border:1px solid var(--line);
+    border-radius:4px;
+    flex-shrink:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:12px;
+    font-weight:bold;
+  }
+  .checkbox.checked{
+    background:var(--line);
+    color:#fff;
+  }
+  .checkbox.disabled{
+    border-color:var(--gray3);
+    color:var(--gray3);
+  }
+  .child-row .child-name{
+    font-size:13px;
+    font-weight:bold;
+  }
+  .child-row .child-detail{
+    font-size:11px;
+    color:#555;
+    margin-top:2px;
+  }
+  .child-row.disabled .child-name,
+  .child-row.disabled .child-detail{
+    color:#999;
+  }
+
+  .status-toggle{
+    display:flex;
+    gap:8px;
+    margin:0 12px;
+  }
+  .status-btn{
+    flex:1;
+    text-align:center;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:12px 0;
+    font-size:13px;
+    font-weight:bold;
+    background:#fff;
+  }
+  .status-btn.selected{
+    background:var(--line);
+    color:#fff;
+  }
+
+  .child-block{
+    margin:16px 12px 0;
+    border-top:1px dashed var(--gray3);
+    padding-top:12px;
+  }
+  .child-block-name{
+    font-size:12px;
+    font-weight:bold;
+    margin-bottom:8px;
+  }
+  .makeup-actions{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+  }
+  .mbtn{
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:5px 10px;
+    font-size:11px;
+    background:#fff;
+  }
+  .mbtn.selected{
+    background:var(--line);
+    color:#fff;
+  }
+  .target-lesson-btn{
+    margin-top:10px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 12px;
+    font-size:12px;
+    font-weight:bold;
+    background:#fff;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    cursor:pointer;
+    position:relative;
+  }
+  .target-lesson-btn .chevron{
+    font-size:14px;
+    color:#999;
+    font-weight:normal;
+  }
+
+  .field{
+    margin:14px 12px 0;
+  }
+  .field label{
+    display:block;
+    font-size:11px;
+    color:#555;
+    margin-bottom:4px;
+  }
+  .field label .opt{
+    color:#999;
+    font-weight:normal;
+  }
+  .field textarea{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:8px 10px;
+    font-size:13px;
+    font-family:inherit;
+    background:#fff;
+    height:56px;
+    resize:none;
+  }
+
+  .confirm-box{
+    margin:24px 12px 20px;
+    position:relative;
+  }
+  .confirm-btn{
+    text-align:center;
+    background:var(--line);
+    color:#fff;
+    border-radius:6px;
+    padding:12px 0;
+    font-size:14px;
+    font-weight:bold;
+  }
+
+  /* bottom tab bar */
+  .tabbar{
+    display:flex;
+    border-top:1px solid var(--line);
+  }
+  .tab{
+    flex:1;
+    text-align:center;
+    padding:10px 0 8px;
+    font-size:10px;
+    color:#777;
+  }
+  .tab svg{
+    width:22px;
+    height:22px;
+    margin:0 auto 4px;
+    display:block;
+  }
+  .tab.active{
+    color:#000;
+    font-weight:bold;
+  }
+
+  .caption{
+    font-size:11px;
+    color:#666;
+    margin-top:10px;
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+  <div class="side">
+    <h1>WF：欠席・遅刻・補講登録画面</h1>
+    <div class="sub">保護者向け／スマホ／保護者専用</div>
+
+    <h2>アノテーションの読み方</h2>
+    <div class="legend-item"><span class="legend-tag">input</span> 入力できる項目</div>
+    <div class="legend-item"><span class="legend-tag">quick action</span> 1タップで状態を確定させる操作</div>
+    <div class="legend-item"><span class="legend-tag">expand</span> 条件付きで表示が増える領域</div>
+    <div class="legend-item"><span class="legend-tag">info</span> タップで補足説明を表示する要素</div>
+    <div class="legend-item"><span class="legend-tag">nav</span> タップで画面遷移する要素</div>
+    <div class="legend-item"><span class="legend-tag">action</span> 確認の上で実行する操作</div>
+  </div>
+
+  <div class="main">
+    <div class="phone">
+      <div class="screen">
+        <div class="status-bar"></div>
+
+        <div class="content">
+
+          <div class="section-title first">対象を選択</div>
+
+          <div class="child-row">
+            <span class="annot">input</span>
+            <div class="checkbox checked">✓</div>
+            <div>
+              <div class="child-name">そら</div>
+              <div class="child-detail">8/15(土)　10:00-11:00　基礎クラス（土曜）</div>
+            </div>
+          </div>
+
+          <div class="child-row">
+            <div class="checkbox"></div>
+            <div>
+              <div class="child-name">ひなた</div>
+              <div class="child-detail">8/21(金)　16:00-17:00　基礎クラス2組</div>
+            </div>
+          </div>
+
+          <div class="child-row disabled">
+            <div class="checkbox disabled"></div>
+            <div>
+              <div class="child-name">あかり</div>
+              <div class="child-detail">休会中のため対象外</div>
+            </div>
+          </div>
+
+          <div class="section-title">欠席・遅刻</div>
+          <div class="status-toggle">
+            <span class="annot">quick action</span>
+            <div class="status-btn selected">欠席する</div>
+            <div class="status-btn">遅刻する</div>
+          </div>
+
+          <div class="child-block">
+            <span class="annot">expand</span>
+            <div class="child-block-name">
+              <span class="label-with-hint">そらの補講予定 <span class="hint-icon" id="makeupHint">ⓘ</span></span>
+            </div>
+            <div class="makeup-actions">
+              <div class="mbtn selected">振替</div>
+              <div class="mbtn">30分前補講</div>
+              <div class="mbtn">未定</div>
+              <div class="mbtn">補講なし</div>
+            </div>
+            <div class="target-lesson-btn" id="targetLessonLink">
+              <span class="annot">nav</span>
+              <span id="targetLessonLabel">対象の授業回を選択（振替先を指定）</span>
+              <span class="chevron">›</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>その他・ご連絡事項 <span class="opt">（任意）</span></label>
+            <textarea placeholder="他にご連絡したいことがあればご記入ください"></textarea>
+          </div>
+
+          <div class="confirm-box">
+            <span class="annot">action</span>
+            <div class="confirm-btn">連絡する</div>
+          </div>
+
+        </div>
+
+        <div class="tabbar">
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+              <line x1="7" y1="3" x2="7" y2="7"></line>
+              <line x1="17" y1="3" x2="17" y2="7"></line>
+              <path d="M8 14l2.3 2.3L16 11"></path>
+            </svg>
+            出席予定
+          </div>
+          <div class="tab active">
+            <svg viewBox="0 0 24 24">
+              <path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" fill="currentColor"></path>
+            </svg>
+            欠席連絡
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="4"></circle>
+              <path d="M4 20c0-4 4-7 8-7s8 3 8 7"></path>
+            </svg>
+            プロフィール
+          </div>
+        </div>
+
+        <div class="modal-overlay" id="makeupModal">
+          <div class="modal-card">
+            <div class="modal-title">補講予定について</div>
+            <div class="modal-body">
+              <strong>振替</strong>：他の同じ授業実施日（別クラス・別日程の同内容の授業）に出席すること<br><br>
+              <strong>30分前補講</strong>：次回以降の授業に30分早く来て、前回休んだ分＋当日の授業を受けること<br><br>
+              <strong>未定</strong>：振替・30分前補講のどちらにするか決まっておらず、運営が後日対応するもの<br><br>
+              <strong>補講なし</strong>：補講を行わない
+            </div>
+            <div class="modal-close" id="makeupModalClose">閉じる</div>
+          </div>
+        </div>
+
+        <div class="modal-overlay" id="lessonPickerModal">
+          <div class="modal-card">
+            <div class="modal-title">振替先の授業回を選択</div>
+            <div class="modal-body">
+              <div class="lesson-option">8/22(土)　10:00-11:00　基礎クラス（土曜）</div>
+              <div class="lesson-option">8/23(日)　10:00-11:00　基礎クラス（日曜）</div>
+              <div class="lesson-option">8/27(木)　15:00-16:00　基礎クラス1組</div>
+            </div>
+            <div class="modal-close" id="lessonPickerClose">キャンセル</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      ※この画面はタブから直接開くか、出席履歴・予定確認画面の「欠席・遅刻を連絡する」ボタンから開きます。前者はお子さま・状態とも未選択、後者は対象のお子さま・次回授業回があらかじめ選択された状態になります（いずれも遷移先は同じこの画面で、サブ画面ではありません。どちらから入っても他のお子さまを追加選択できます）。前の画面に「戻る」概念が無いため、入力を取りやめる場合は他のタブに切り替えれば内容は破棄されます（明示的なキャンセル操作はありません）。<br>
+      ※お子さまが1人の場合は「対象を選択」のチェックボックス自体を表示せず、その子の次回授業回をそのまま表示します。<br>
+      ※対象の授業回は次回の授業回に固定です。複数回先までまとめて連絡する機能は今回のMVPには含めません。<br>
+      ※「欠席する／遅刻する」は選択した全員に共通で適用します。「補講予定」は選択したお子さまごとに個別のブロックで表示・選択します。<br>
+      ※「遅刻する」を選んだ場合、補講予定の代わりに任意のメモ欄（遅れる目安の時間など）を表示します。attendancesのis_lateにtrueを保存し、makeup_type等は使用しません。<br>
+      ※「欠席する」を選んだ場合の保存内容は、出席記録・一覧画面（運営側）と同じ仕組みです。status='欠席'、makeup_type、対象授業回（makeup_lesson_id）をattendancesに保存します。<br>
+      ※「その他・ご連絡事項」は、選択したお子さま全員で共有する1つの入力欄です（生徒ごとには分かれていません）。保存時は同じ内容を、選択した各お子さまのattendances.noteにそれぞれコピーして保存します。
+    </div>
+  </div>
+
+<script>
+  var makeupHint = document.getElementById('makeupHint');
+  var makeupModal = document.getElementById('makeupModal');
+  var makeupModalClose = document.getElementById('makeupModalClose');
+  makeupHint.addEventListener('click', function(){ makeupModal.classList.add('open'); });
+  makeupModalClose.addEventListener('click', function(){ makeupModal.classList.remove('open'); });
+  makeupModal.addEventListener('click', function(e){ if(e.target === makeupModal){ makeupModal.classList.remove('open'); } });
+
+  var targetLessonLink = document.getElementById('targetLessonLink');
+  var targetLessonLabel = document.getElementById('targetLessonLabel');
+  var lessonPickerModal = document.getElementById('lessonPickerModal');
+  var lessonPickerClose = document.getElementById('lessonPickerClose');
+  var lessonOptions = lessonPickerModal.querySelectorAll('.lesson-option');
+
+  targetLessonLink.addEventListener('click', function(){ lessonPickerModal.classList.add('open'); });
+  lessonPickerClose.addEventListener('click', function(){ lessonPickerModal.classList.remove('open'); });
+  lessonPickerModal.addEventListener('click', function(e){ if(e.target === lessonPickerModal){ lessonPickerModal.classList.remove('open'); } });
+  lessonOptions.forEach(function(opt){
+    opt.addEventListener('click', function(){
+      targetLessonLabel.textContent = '対象の授業回：' + opt.textContent;
+      lessonPickerModal.classList.remove('open');
+    });
+  });
+</script>
+</body>
+</html>
