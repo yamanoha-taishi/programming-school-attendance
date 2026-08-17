@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('sections', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->enum('weekday', ['月','火','水','木','金','土','日']);
+            $table->enum('weekday', ['月', '火', '水', '木', '金', '土', '日']);
             $table->time('start_time');
             $table->time('end_time');
             $table->timestamps();

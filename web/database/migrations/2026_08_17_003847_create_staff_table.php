@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('name_kana');
             $table->string('email')->unique()->nullable();
             $table->string('password');
-            $table->enum('role', ['full_access','attendance_only']);
+            $table->enum('role', ['full_access', 'attendance_only']);
             $table->text('note')->nullable();
             $table->timestamps();
             $table->softDeletes();

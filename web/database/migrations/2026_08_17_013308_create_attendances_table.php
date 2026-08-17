@@ -17,9 +17,9 @@ return new class extends Migration
             $table->foreignId('lesson_id')->constrained();
             $table->foreignId('makeup_lesson_id')->nullable()->constrained('lessons');
             $table->foreignId('staff_id')->nullable()->constrained('staff');
-            $table->enum('status', ['出席','欠席'])->nullable();
+            $table->enum('status', ['出席', '欠席'])->nullable();
             $table->boolean('is_late')->default(false);
-            $table->enum('makeup_type', ['振替','30分前補講','補講なし','未定'])->nullable();
+            $table->enum('makeup_type', ['振替', '30分前補講', '補講なし', '未定'])->nullable();
             $table->text('note')->nullable();
             $table->timestamps();
 
