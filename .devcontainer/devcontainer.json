@@ -3,5 +3,18 @@
   "dockerComposeFile": "../web/docker-compose.yml",
   "service": "app",
   "workspaceFolder": "/var/www/html",
-  "shutdownAction": "stopCompose"
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "open-southeners.laravel-pint"
+      ],
+      "settings": {
+        "[php]": {
+          "editor.defaultFormatter": "open-southeners.laravel-pint",
+          "editor.formatOnSave": true
+        }
+      }
+    }
+  }
 }
