@@ -13,14 +13,14 @@ return new class extends Migration
     {
         Schema::create('lessons', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('section_id')->constrained();
+            $table->foreignId('school_class_id')->constrained();
             $table->integer('no');
             $table->date('date');
             $table->string('title')->nullable();
             $table->timestamps();
             $table->softDeletes();
 
-            $table->unique(['section_id', 'no']);
+            $table->unique(['school_class_id', 'no']);
         });
     }
 

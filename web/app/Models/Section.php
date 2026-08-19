@@ -22,11 +22,6 @@ class Section extends Model
         return $this->hasMany(Holiday::class);
     }
 
-    public function lessons(): HasMany
-    {
-        return $this->hasMany(Lesson::class);
-    }
-
     public function schoolClasses(): HasMany
     {
         return $this->hasMany(SchoolClass::class);

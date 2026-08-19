@@ -12,7 +12,7 @@ class Lesson extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'section_id',
+        'school_class_id',
         'no',
         'date',
         'title',
@@ -22,9 +22,9 @@ class Lesson extends Model
         'date' => 'date',
     ];
 
-    public function section(): BelongsTo
+    public function schoolClass(): BelongsTo
     {
-        return $this->belongsTo(Section::class);
+        return $this->belongsTo(SchoolClass::class);
     }
 
     public function attendances(): HasMany
