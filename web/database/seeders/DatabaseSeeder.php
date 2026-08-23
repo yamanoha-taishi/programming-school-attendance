@@ -26,7 +26,11 @@ class DatabaseSeeder extends Seeder
             SectionSeeder::class,
             SchoolClassSeeder::class,
             HolidaySeeder::class,
+            LessonPlanSeeder::class,
             LessonSeeder::class,
+            FamilySeeder::class,
+            StaffSeeder::class,
+            AttendanceSeeder::class,
         ]);
     }
 }
