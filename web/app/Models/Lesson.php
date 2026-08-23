@@ -12,19 +12,23 @@ class Lesson extends Model
     use SoftDeletes;
 
     protected $fillable = [
-        'school_class_id',
-        'no',
+        'lesson_plan_id',
+        'section_id',
         'date',
-        'title',
     ];
 
     protected $casts = [
         'date' => 'date',
     ];
 
-    public function schoolClass(): BelongsTo
+    public function lessonPlan(): BelongsTo
     {
-        return $this->belongsTo(SchoolClass::class);
+        return $this->belongsTo(LessonPlan::class);
+    }
+
+    public function section(): BelongsTo
+    {
+        return $this->belongsTo(Section::class);
     }
 
     public function attendances(): HasMany
