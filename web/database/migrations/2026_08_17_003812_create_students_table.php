@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('guardian_id')->constrained();
             $table->foreignId('school_class_id')->constrained();
+            $table->foreignId('section_id')->constrained();
             $table->enum('grade', ['年中', '年長', '小1', '小2', '小3', '小4', '小5', '小6', '中1', '中2', '中3']);
             $table->enum('gender', ['male', 'female'])->nullable();
             $table->string('name');

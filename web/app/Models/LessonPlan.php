@@ -3,32 +3,27 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Section extends Model
+class LessonPlan extends Model
 {
     use SoftDeletes;
 
     protected $fillable = [
-        'name',
-        'weekday',
-        'start_time',
-        'end_time',
+        'school_class_id',
+        'no',
+        'title',
     ];
 
-    public function holidays(): HasMany
+    public function schoolClass(): BelongsTo
     {
-        return $this->hasMany(Holiday::class);
+        return $this->belongsTo(SchoolClass::class);
     }
 
     public function lessons(): HasMany
     {
         return $this->hasMany(Lesson::class);
-    }
-
-    public function students(): HasMany
-    {
-        return $this->hasMany(Student::class);
     }
 }

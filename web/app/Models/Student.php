@@ -14,6 +14,7 @@ class Student extends Model
     protected $fillable = [
         'guardian_id',
         'school_class_id',
+        'section_id',
         'grade',
         'gender',
         'name',
@@ -36,6 +37,11 @@ class Student extends Model
     public function schoolClass(): BelongsTo
     {
         return $this->belongsTo(SchoolClass::class);
+    }
+
+    public function section(): BelongsTo
+    {
+        return $this->belongsTo(Section::class);
     }
 
     public function attendances(): HasMany
