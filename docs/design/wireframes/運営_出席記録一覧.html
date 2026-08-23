@@ -170,6 +170,12 @@
     font-size:14px;
     font-weight:bold;
   }
+  .date-nav-main{
+    display:grid;
+    grid-template-columns:auto 120px auto;
+    align-items:center;
+    gap:10px;
+  }
   .date-nav .arrow{
     font-size:14px;
     font-weight:normal;
@@ -177,6 +183,40 @@
     padding:2px 10px;
     border:1px solid var(--line);
     border-radius:4px;
+  }
+  .date-text{
+    cursor:pointer;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    gap:5px;
+    width:100%;
+    box-sizing:border-box;
+    padding:4px 8px;
+    border:1px solid var(--line);
+    border-radius:14px;
+    background:var(--gray1);
+    white-space:nowrap;
+  }
+  .date-text .caret{
+    font-size:13px;
+    font-weight:normal;
+    color:#777;
+  }
+  .today-btn{
+    font-size:11px;
+    font-weight:normal;
+    color:#333;
+    padding:4px 10px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:#fff;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .today-btn-ghost{
+    visibility:hidden;
+    pointer-events:none;
   }
 
   .day-summary{
@@ -432,9 +472,13 @@
         <div class="app-header">
           <span class="annot">nav</span>
           <div class="date-nav">
-            <span class="arrow">◀</span>
-            8/13(木)
-            <span class="arrow">▶</span>
+            <span class="today-btn today-btn-ghost" aria-hidden="true">今日</span>
+            <div class="date-nav-main">
+              <span class="arrow" id="prevDayBtn">◀</span>
+              <span class="date-text" id="dateLabel"><span id="dateLabelText">8/13(木)</span><span class="caret">▾</span></span>
+              <span class="arrow" id="nextDayBtn">▶</span>
+            </div>
+            <span class="today-btn" id="todayBtn">今日</span>
           </div>
           <div class="day-summary">
             <span class="annot">summary</span>
@@ -737,6 +781,21 @@
             <div class="modal-close" id="lessonPickerClose">キャンセル</div>
           </div>
         </div>
+
+        <div class="modal-overlay" id="datePickerModal">
+          <div class="modal-card">
+            <div class="modal-title">日付を選択</div>
+            <div class="modal-body">
+              <div class="lesson-option" data-date="8/13(木)">8/13(木)</div>
+              <div class="lesson-option" data-date="8/6(木)">8/6(木)</div>
+              <div class="lesson-option" data-date="7/30(木)">7/30(木)</div>
+              <div class="lesson-option" data-date="7/23(木)">7/23(木)</div>
+              <div class="lesson-option" data-date="7/16(木)">7/16(木)</div>
+              <div class="lesson-option" data-date="7/9(木)">7/9(木)</div>
+            </div>
+            <div class="modal-close" id="datePickerClose">キャンセル</div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="caption">
@@ -746,7 +805,9 @@
       ※出欠サマリー（出席／欠席／未記録の人数）は、当日全体とクラスごとの両方で集計・表示します。<br>
       ※保護者から事前に欠席連絡があり補講予定まで決まっている場合は、記録済みとして折りたたみ表示され、「事前連絡」タグで運営が当日記録したものと区別します。<br>
       ※「→ 対象の授業回を選択」は、lessons（授業回）の今後の日程一覧から選択する形式で、選択結果はattendances.makeup_lesson_idに保存します。「振替」「30分前補講」を選んだ場合のみ使用します。<br>
-      ※休会開始月以降（終了月が未設定または当日を含む）の生徒はこの画面に表示されません。休会中もクラスの定員としては引き続きカウントします。
+      ※休会開始月以降（終了月が未設定または当日を含む）の生徒はこの画面に表示されません。休会中もクラスの定員としては引き続きカウントします。<br>
+      ※日付表示（例：8/13(木)）をタップすると、記録がある日付（lessonsが存在する日）の一覧がモーダルで表示され、選択するとその日付の記録に切り替わります。未来の日付や記録のない日付はここには表示されません。<br>
+      ※「今日」ボタンをタップすると、◀▶や日付一覧でどこまで移動していても、一瞬で今日の日付の記録に戻ります。
     </div>
   </div>
 
@@ -772,6 +833,27 @@
       targetLessonLabel.textContent = '対象の授業回：' + opt.textContent;
       lessonPickerModal.classList.remove('open');
     });
+  });
+
+  var TODAY_LABEL = '8/13(木)';
+  var dateLabel = document.getElementById('dateLabel');
+  var dateLabelText = document.getElementById('dateLabelText');
+  var todayBtn = document.getElementById('todayBtn');
+  var datePickerModal = document.getElementById('datePickerModal');
+  var datePickerClose = document.getElementById('datePickerClose');
+  var dateOptions = datePickerModal.querySelectorAll('.lesson-option');
+
+  dateLabel.addEventListener('click', function(){ datePickerModal.classList.add('open'); });
+  datePickerClose.addEventListener('click', function(){ datePickerModal.classList.remove('open'); });
+  datePickerModal.addEventListener('click', function(e){ if(e.target === datePickerModal){ datePickerModal.classList.remove('open'); } });
+  dateOptions.forEach(function(opt){
+    opt.addEventListener('click', function(){
+      dateLabelText.textContent = opt.getAttribute('data-date');
+      datePickerModal.classList.remove('open');
+    });
+  });
+  todayBtn.addEventListener('click', function(){
+    dateLabelText.textContent = TODAY_LABEL;
   });
 </script>
 </body>
