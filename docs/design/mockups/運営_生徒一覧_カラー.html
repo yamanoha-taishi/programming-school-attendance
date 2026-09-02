@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>カラーモックアップ: 生徒一覧画面（運営・スマホ版）</title>
+<style>
+  :root{
+    --primary:#2E5AAC;
+    --primary-hover:#24457F;
+    --primary-tint:#E8EEFA;
+    --accent:#E8823C;
+    --accent-hover:#C86A28;
+    --accent-tint:#FCEADA;
+    --border:#DCE0E5;
+    --surface:#FFFFFF;
+    --page-bg:#F4F5F7;
+    --sunken:#EEF0F3;
+    --text:#1F2430;
+    --text-muted:#5B6472;
+    --text-faint:#8A93A0;
+
+    --status-attend:#2F9E4F;
+    --status-attend-bg:#E8F7EC;
+    --status-late:#B08000;
+    --status-late-bg:#FBF3DC;
+    --status-absent:#D6483F;
+    --status-absent-bg:#FBEAE8;
+    --status-transfer:#1E8A8A;
+    --status-transfer-bg:#E4F5F5;
+    --status-makeup:#7A4FC9;
+    --status-makeup-bg:#F1EBFB;
+    --status-pending:#767C87;
+    --status-pending-bg:#EEEFF1;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+    background:var(--page-bg);
+    margin:0;
+    padding:32px;
+    display:grid;
+    grid-template-columns:260px 420px;
+    column-gap:40px;
+    align-items:start;
+    color:var(--text);
+  }
+  .side{ grid-column:1; grid-row:1; }
+  .main{ grid-column:2; grid-row:1; }
+  .side h1{ font-size:18px; margin:0 0 4px; }
+  .side .sub{ font-size:12px; color:var(--text-muted); margin-bottom:20px; }
+  .side .note{
+    font-size:12px;
+    line-height:1.8;
+    color:var(--text-muted);
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent);
+    border-radius:8px;
+    padding:12px 14px;
+  }
+  .side .note code{ font-size:11px; }
+
+  /* --- phone frame --- */
+  .phone{
+    width:375px;
+    border:3px solid var(--text);
+    border-radius:28px;
+    padding:10px;
+    background:var(--surface);
+  }
+  .screen{
+    border:1px solid var(--border);
+    border-radius:16px;
+    overflow:hidden;
+    position:relative;
+    height:780px;
+    display:flex;
+    flex-direction:column;
+    background:var(--surface);
+  }
+  .content{
+    flex:1;
+    overflow-y:auto;
+  }
+
+  .status-bar{
+    height:20px;
+    background:var(--sunken);
+    border-bottom:1px solid var(--border);
+  }
+  .app-header{
+    padding:10px 12px;
+    border-bottom:1px solid var(--border);
+    position:relative;
+  }
+  .back-row{
+    font-size:11px;
+    color:var(--text-muted);
+    margin-bottom:6px;
+  }
+  .title-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .title-row .title{
+    font-size:15px;
+    font-weight:bold;
+    color:var(--text);
+  }
+  .title-row .count{
+    font-size:11px;
+    color:var(--text-muted);
+    font-weight:normal;
+  }
+
+  .toolbar{
+    display:flex;
+    gap:8px;
+    padding:10px 12px;
+    border-bottom:1px solid var(--border);
+    background:var(--sunken);
+  }
+  .search-box{
+    flex:1;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:7px 10px;
+    font-size:12px;
+    background:var(--surface);
+    color:var(--text-faint);
+    position:relative;
+  }
+  .add-btn{
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:7px 12px;
+    font-size:12px;
+    font-weight:bold;
+    background:var(--surface);
+    color:var(--text);
+    white-space:nowrap;
+  }
+
+  .student-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:12px;
+    border-bottom:1px solid var(--border);
+    position:relative;
+  }
+  .student-left .name-line{
+    display:flex;
+    align-items:baseline;
+    gap:6px;
+  }
+  .student-left .name{
+    font-size:14px;
+    font-weight:bold;
+    color:var(--text);
+  }
+  .student-left .kana{
+    font-size:10px;
+    color:var(--text-faint);
+  }
+  .student-left .sub-line{
+    font-size:11px;
+    color:var(--text-muted);
+    margin-top:3px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .leave-badge{
+    font-size:9px;
+    border:none;
+    border-radius:8px;
+    padding:1px 7px;
+    background:var(--status-pending-bg);
+    color:var(--status-pending);
+    font-weight:600;
+  }
+  .student-right{
+    display:flex;
+    align-items:center;
+  }
+  .chevron{
+    font-size:14px;
+    color:var(--text-faint);
+  }
+
+  /* bottom tab bar */
+  .tabbar{
+    display:flex;
+    border-top:1px solid var(--border);
+    background:var(--surface);
+  }
+  .tab{
+    flex:1;
+    text-align:center;
+    padding:10px 0 8px;
+    font-size:10px;
+    color:var(--text-faint);
+  }
+  .tab svg{
+    width:22px;
+    height:22px;
+    margin:0 auto 4px;
+    display:block;
+  }
+  .tab.active{
+    color:var(--primary);
+    font-weight:bold;
+  }
+
+  .caption{
+    font-size:11px;
+    color:var(--text-muted);
+    margin-top:10px;
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+  <div class="side">
+    <h1>生徒一覧画面</h1>
+    <div class="sub">運営向け／スマホ／full_access のみ</div>
+    <div class="note">
+      構造は元のWF（<code>wireframes/運営_生徒一覧.html</code>）と同じです。配色は<code>デザイントークン定義書.md</code>のトークンをそのまま適用しています。「休会中」バッジは出席ステータスに対応がないため、ニュートラルなpendingトークンを流用しています。
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="phone">
+      <div class="screen">
+        <div class="status-bar"></div>
+
+        <div class="app-header">
+          <div class="back-row">‹ 管理メニュー</div>
+          <div class="title-row">
+            <span class="title">生徒一覧</span>
+            <span class="count">全31件</span>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="search-box">
+            名前で検索
+          </div>
+          <div class="add-btn">＋ 新規登録</div>
+        </div>
+
+        <div class="content">
+
+          <div class="student-row">
+            <div class="student-left">
+              <div class="name-line">
+                <span class="name">佐藤 はると</span>
+                <span class="kana">サトウ ハルト</span>
+              </div>
+              <div class="sub-line">小2・基礎クラス1組</div>
+            </div>
+            <div class="student-right">
+              <span class="chevron">›</span>
+            </div>
+          </div>
+
+          <div class="student-row">
+            <div class="student-left">
+              <div class="name-line">
+                <span class="name">鈴木 ゆい</span>
+                <span class="kana">スズキ ユイ</span>
+              </div>
+              <div class="sub-line">小1・基礎クラス1組</div>
+            </div>
+            <div class="student-right">
+              <span class="chevron">›</span>
+            </div>
+          </div>
+
+          <div class="student-row">
+            <div class="student-left">
+              <div class="name-line">
+                <span class="name">高橋 そら</span>
+                <span class="kana">タカハシ ソラ</span>
+              </div>
+              <div class="sub-line">年長・基礎クラス1組</div>
+            </div>
+            <div class="student-right">
+              <span class="chevron">›</span>
+            </div>
+          </div>
+
+          <div class="student-row">
+            <div class="student-left">
+              <div class="name-line">
+                <span class="name">高橋 あかり</span>
+                <span class="kana">タカハシ アカリ</span>
+              </div>
+              <div class="sub-line">
+                小3・応用クラス
+                <span class="leave-badge">休会中</span>
+              </div>
+            </div>
+            <div class="student-right">
+              <span class="chevron">›</span>
+            </div>
+          </div>
+
+          <div class="student-row">
+            <div class="student-left">
+              <div class="name-line">
+                <span class="name">田中 みお</span>
+                <span class="kana">タナカ ミオ</span>
+              </div>
+              <div class="sub-line">小2・基礎クラス1組</div>
+            </div>
+            <div class="student-right">
+              <span class="chevron">›</span>
+            </div>
+          </div>
+
+          <div class="student-row">
+            <div class="student-left">
+              <div class="name-line">
+                <span class="name">伊藤 あおい</span>
+                <span class="kana">イトウ アオイ</span>
+              </div>
+              <div class="sub-line">小1・基礎クラス1組</div>
+            </div>
+            <div class="student-right">
+              <span class="chevron">›</span>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="tabbar">
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="4" width="14" height="17" rx="2"></rect>
+              <rect x="9" y="2" width="6" height="4" rx="1"></rect>
+              <line x1="8" y1="11" x2="16" y2="11"></line>
+              <line x1="8" y1="15" x2="16" y2="15"></line>
+            </svg>
+            出席記録
+          </div>
+          <div class="tab active">
+            <svg viewBox="0 0 24 24">
+              <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="4" y1="6" x2="20" y2="6"></line>
+                <line x1="4" y1="12" x2="20" y2="12"></line>
+                <line x1="4" y1="18" x2="20" y2="18"></line>
+              </g>
+              <circle cx="9" cy="6" r="2.4" fill="currentColor"></circle>
+              <circle cx="15" cy="12" r="2.4" fill="currentColor"></circle>
+              <circle cx="7" cy="18" r="2.4" fill="currentColor"></circle>
+            </svg>
+            管理
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="4"></circle>
+              <path d="M4 20c0-4 4-7 8-7s8 3 8 7"></path>
+            </svg>
+            プロフィール
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      ※name_kanaは生徒については必須（NOT NULL）のため、カナ表示欄が空になることはありません。<br>
+      ※休会開始月以降（終了月が未設定または当日を含む）の生徒には「休会中」バッジを表示します。休会中でもこの一覧・登録編集画面からは引き続き確認・編集できます（表示されなくなるのは出席記録・一覧画面のみです）。
+    </div>
+  </div>
+
+</body>
+</html>

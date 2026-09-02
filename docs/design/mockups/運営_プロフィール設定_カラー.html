@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>カラーモックアップ: プロフィール設定画面（運営・スマホ版）</title>
+<style>
+  :root{
+    --primary:#2E5AAC;
+    --primary-hover:#24457F;
+    --primary-tint:#E8EEFA;
+    --accent:#E8823C;
+    --accent-hover:#C86A28;
+    --accent-tint:#FCEADA;
+    --border:#DCE0E5;
+    --surface:#FFFFFF;
+    --page-bg:#F4F5F7;
+    --sunken:#EEF0F3;
+    --text:#1F2430;
+    --text-muted:#5B6472;
+    --text-faint:#8A93A0;
+
+    --status-attend:#2F9E4F;
+    --status-attend-bg:#E8F7EC;
+    --status-late:#B08000;
+    --status-late-bg:#FBF3DC;
+    --status-absent:#D6483F;
+    --status-absent-bg:#FBEAE8;
+    --status-transfer:#1E8A8A;
+    --status-transfer-bg:#E4F5F5;
+    --status-makeup:#7A4FC9;
+    --status-makeup-bg:#F1EBFB;
+    --status-pending:#767C87;
+    --status-pending-bg:#EEEFF1;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+    background:var(--page-bg);
+    margin:0;
+    padding:32px;
+    display:grid;
+    grid-template-columns:260px 420px;
+    column-gap:40px;
+    align-items:start;
+    color:var(--text);
+  }
+  .side{ grid-column:1; grid-row:1; }
+  .main{ grid-column:2; grid-row:1; }
+  .side h1{ font-size:18px; margin:0 0 4px; }
+  .side .sub{ font-size:12px; color:var(--text-muted); margin-bottom:20px; }
+  .side .note{
+    font-size:12px;
+    line-height:1.8;
+    color:var(--text-muted);
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent);
+    border-radius:8px;
+    padding:12px 14px;
+  }
+  .side .note code{ font-size:11px; }
+
+  /* --- phone frame --- */
+  .phone{
+    width:375px;
+    border:3px solid var(--text);
+    border-radius:28px;
+    padding:10px;
+    background:var(--surface);
+  }
+  .screen{
+    border:1px solid var(--border);
+    border-radius:16px;
+    overflow:hidden;
+    position:relative;
+    height:780px;
+    display:flex;
+    flex-direction:column;
+    background:var(--surface);
+  }
+  .content{
+    flex:1;
+    overflow-y:auto;
+  }
+
+  .status-bar{
+    height:20px;
+    background:var(--sunken);
+    border-bottom:1px solid var(--border);
+  }
+  .app-header{
+    padding:10px 12px 8px;
+    border-bottom:1px solid var(--border);
+    font-size:12px;
+    font-weight:normal;
+    color:var(--text-muted);
+  }
+
+  .section-title{
+    margin:20px 12px 4px;
+    font-size:11px;
+    font-weight:bold;
+    color:var(--text-muted);
+    border-bottom:1px solid var(--border);
+    padding-bottom:4px;
+  }
+  .section-title.first{
+    margin-top:16px;
+  }
+
+  .field{
+    margin:14px 12px 0;
+    position:relative;
+  }
+  .field label{
+    display:block;
+    font-size:11px;
+    color:var(--text-muted);
+    margin-bottom:4px;
+  }
+  .field label .opt{
+    color:var(--text-faint);
+    font-weight:normal;
+  }
+  .field input{
+    width:100%;
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:8px 10px;
+    font-size:13px;
+    font-family:inherit;
+    background:var(--surface);
+    color:var(--text);
+  }
+  .helper{
+    font-size:10px;
+    color:var(--text-faint);
+    margin-top:4px;
+    line-height:1.5;
+  }
+
+  .readonly-box{
+    margin:12px 12px 0;
+    background:var(--sunken);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:8px 10px;
+    font-size:12px;
+    color:var(--text-muted);
+    position:relative;
+  }
+
+  .action-box{
+    margin:14px 12px 0;
+    position:relative;
+  }
+  .action-btn{
+    display:inline-block;
+    background:var(--primary);
+    color:#fff;
+    border-radius:8px;
+    padding:8px 14px;
+    font-size:12px;
+    font-weight:bold;
+  }
+
+  .logout-wrap{
+    margin-top:28px;
+    padding:14px 12px 16px;
+    background:var(--sunken);
+    border-top:6px solid var(--border);
+  }
+  .logout-label{
+    font-size:10px;
+    color:var(--text-faint);
+    margin-bottom:8px;
+  }
+  .logout-btn{
+    border:1.5px solid var(--border);
+    color:var(--text-muted);
+    background:var(--surface);
+    border-radius:8px;
+    padding:11px 0;
+    text-align:center;
+    font-size:13px;
+    font-weight:bold;
+  }
+
+  /* bottom tab bar */
+  .tabbar{
+    display:flex;
+    border-top:1px solid var(--border);
+    background:var(--surface);
+  }
+  .tab{
+    flex:1;
+    text-align:center;
+    padding:10px 0 8px;
+    font-size:10px;
+    color:var(--text-faint);
+  }
+  .tab svg{
+    width:22px;
+    height:22px;
+    margin:0 auto 4px;
+    display:block;
+  }
+  .tab.active{
+    color:var(--primary);
+    font-weight:bold;
+  }
+
+  .caption{
+    font-size:11px;
+    color:var(--text-muted);
+    margin-top:10px;
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+  <div class="side">
+    <h1>プロフィール設定画面</h1>
+    <div class="sub">運営向け／スマホ／full_access・attendance_only 共通</div>
+    <div class="note">
+      構造は元のWF（<code>wireframes/運営_プロフィール設定.html</code>）と同じです。配色は<code>デザイントークン定義書.md</code>のトークンをそのまま適用しています。権限は本人からは編集できない表示専用項目のため、会員番号と同じ中立なreadonly表示にしています。
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="phone">
+      <div class="screen">
+        <div class="status-bar"></div>
+
+        <div class="content">
+          <div class="app-header">プロフィール設定</div>
+
+          <div class="section-title first">基本情報</div>
+
+          <div class="readonly-box">
+            会員番号：5001
+          </div>
+
+          <div class="field">
+            <label>氏名</label>
+            <input type="text" value="山田 太郎">
+          </div>
+
+          <div class="field">
+            <label>名前カナ</label>
+            <input type="text" value="ヤマダ タロウ">
+          </div>
+
+          <div class="field">
+            <label>メールアドレス <span class="opt">（任意）</span></label>
+            <input type="text" value="yamada@example.com">
+            <div class="helper">登録すると、パスワードを忘れた際にご自身でメールから再設定できるようになります（未登録の場合は運営にご連絡ください）。</div>
+          </div>
+
+          <div class="action-box">
+            <div class="action-btn">保存する</div>
+          </div>
+
+          <div class="section-title">権限</div>
+          <div class="readonly-box">
+            フル権限（出席管理＋登録）
+          </div>
+
+          <div class="section-title">パスワードを変更</div>
+
+          <div class="field">
+            <label>現在のパスワード</label>
+            <input type="text" placeholder="••••••••">
+          </div>
+
+          <div class="field">
+            <label>新しいパスワード</label>
+            <input type="text" placeholder="••••••••">
+          </div>
+
+          <div class="field">
+            <label>新しいパスワード（確認）</label>
+            <input type="text" placeholder="••••••••">
+          </div>
+
+          <div class="action-box">
+            <div class="action-btn">変更する</div>
+          </div>
+
+          <div class="logout-wrap">
+            <div class="logout-label">アカウント操作</div>
+            <div class="logout-btn">ログアウトする</div>
+          </div>
+
+        </div>
+
+        <div class="tabbar">
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="4" width="14" height="17" rx="2"></rect>
+              <rect x="9" y="2" width="6" height="4" rx="1"></rect>
+              <line x1="8" y1="11" x2="16" y2="11"></line>
+              <line x1="8" y1="15" x2="16" y2="15"></line>
+            </svg>
+            出席記録
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24">
+              <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="4" y1="6" x2="20" y2="6"></line>
+                <line x1="4" y1="12" x2="20" y2="12"></line>
+                <line x1="4" y1="18" x2="20" y2="18"></line>
+              </g>
+              <circle cx="9" cy="6" r="2.4" fill="#fff" stroke="currentColor" stroke-width="2"></circle>
+              <circle cx="15" cy="12" r="2.4" fill="#fff" stroke="currentColor" stroke-width="2"></circle>
+              <circle cx="7" cy="18" r="2.4" fill="#fff" stroke="currentColor" stroke-width="2"></circle>
+            </svg>
+            管理
+          </div>
+          <div class="tab active">
+            <svg viewBox="0 0 24 24">
+              <circle cx="12" cy="8" r="4" fill="currentColor"></circle>
+              <path d="M4 20c0-4 4-7 8-7s8 3 8 7z" fill="currentColor"></path>
+            </svg>
+            プロフィール
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      ※attendance_only権限のスタッフは「管理」タブが無いため、下部タブは「出席記録・一覧／プロフィール設定」の2つのみになります（画面の内容自体はどちらの権限でも同じです）。<br>
+      ※会員番号はシステム発行のログインIDで、本人からは編集できません（保護者は0001番台、スタッフは5001番台から採番し、guardians／staff全体で重複しない番号にします）。メールアドレスはUNIQUE制約のある任意項目です。未登録のままでも会員番号・パスワードでのログインは可能で、登録すると自己サービスでのパスワード再設定が使えるようになります（ログイン自体には使用しません）。<br>
+      ※「権限」は本人からは編集できない表示専用項目です。変更は別のfull_access権限を持つスタッフがスタッフ編集画面から行います。<br>
+      ※「パスワードを変更」は本人による変更のため、なりすまし防止として「現在のパスワード」の入力を必須にしています（他人のパスワードを再発行するスタッフ編集画面の操作とは別物です）。<br>
+      ※「ログアウトする」は確認ダイアログを経てログアウトし、ログイン画面に戻る想定です。
+    </div>
+  </div>
+
+</body>
+</html>
