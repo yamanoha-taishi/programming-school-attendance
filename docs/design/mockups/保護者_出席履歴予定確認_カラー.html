@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>カラーモックアップ: 出席履歴・予定確認画面（保護者・スマホ版）</title>
+<style>
+  :root{
+    --primary:#2E5AAC;
+    --primary-hover:#24457F;
+    --primary-tint:#E8EEFA;
+    --accent:#E8823C;
+    --accent-hover:#C86A28;
+    --accent-tint:#FCEADA;
+    --border:#DCE0E5;
+    --surface:#FFFFFF;
+    --page-bg:#F4F5F7;
+    --sunken:#EEF0F3;
+    --text:#1F2430;
+    --text-muted:#5B6472;
+    --text-faint:#8A93A0;
+
+    --status-attend:#2F9E4F;
+    --status-attend-bg:#E8F7EC;
+    --status-late:#B08000;
+    --status-late-bg:#FBF3DC;
+    --status-absent:#D6483F;
+    --status-absent-bg:#FBEAE8;
+    --status-transfer:#1E8A8A;
+    --status-transfer-bg:#E4F5F5;
+    --status-makeup:#7A4FC9;
+    --status-makeup-bg:#F1EBFB;
+    --status-pending:#767C87;
+    --status-pending-bg:#EEEFF1;
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+    background:var(--page-bg);
+    margin:0;
+    padding:32px;
+    display:grid;
+    grid-template-columns:280px 420px;
+    column-gap:40px;
+    align-items:start;
+    color:var(--text);
+  }
+  .side{ grid-column:1; grid-row:1; }
+  .main{ grid-column:2; grid-row:1; }
+  .side h1{ font-size:18px; margin:0 0 4px; }
+  .side .sub{ font-size:12px; color:var(--text-muted); margin-bottom:20px; }
+  .side .note{
+    font-size:12px;
+    line-height:1.8;
+    color:var(--text-muted);
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-left:3px solid var(--accent);
+    border-radius:8px;
+    padding:12px 14px;
+  }
+  .side .note code{ font-size:11px; }
+
+  /* --- phone frame --- */
+  .phone{
+    width:375px;
+    border:3px solid var(--text);
+    border-radius:28px;
+    padding:10px;
+    background:var(--surface);
+  }
+  .screen{
+    border:1px solid var(--border);
+    border-radius:16px;
+    overflow:hidden;
+    position:relative;
+    height:780px;
+    display:flex;
+    flex-direction:column;
+    background:var(--surface);
+  }
+  .content{
+    flex:1;
+    overflow-y:auto;
+  }
+
+  .status-bar{
+    height:20px;
+    background:var(--sunken);
+    border-bottom:1px solid var(--border);
+  }
+
+  .child-name{
+    margin:20px 12px 8px;
+    font-size:14px;
+    font-weight:bold;
+    color:var(--text);
+    border-bottom:1px solid var(--border);
+    padding-bottom:6px;
+  }
+
+  .next-lesson-card{
+    margin:0 12px 0;
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:12px;
+    background:var(--surface);
+  }
+  .next-label{
+    font-size:10px;
+    color:var(--text-muted);
+    margin-bottom:4px;
+  }
+  .next-date-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .next-date{
+    font-size:16px;
+    font-weight:bold;
+    color:var(--text);
+  }
+  .next-tag{
+    font-size:10px;
+    border:none;
+    border-radius:10px;
+    padding:2px 8px;
+    font-weight:600;
+    background:var(--status-transfer-bg);
+    color:var(--status-transfer);
+  }
+  .next-class{
+    font-size:12px;
+    color:var(--text-muted);
+    margin-top:2px;
+  }
+  .next-btn{
+    margin-top:10px;
+    text-align:center;
+    background:var(--primary);
+    color:#fff;
+    border-radius:8px;
+    padding:9px 0;
+    font-size:12px;
+    font-weight:bold;
+  }
+
+  .leave-status-box{
+    margin:0 12px;
+    background:var(--sunken);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:14px;
+    font-size:12px;
+    color:var(--text-muted);
+    text-align:center;
+  }
+
+  .history-scroll{
+    max-height:260px;
+    overflow-y:auto;
+  }
+  .history-row{
+    padding:10px 12px;
+    border-bottom:1px solid var(--border);
+  }
+  .h-row-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  .h-date{
+    font-size:13px;
+    font-weight:bold;
+    color:var(--text);
+  }
+  .h-badges{
+    display:flex;
+    gap:6px;
+  }
+  .badge{
+    font-size:10px;
+    border:none;
+    border-radius:10px;
+    padding:2px 8px;
+    font-weight:600;
+  }
+  .badge.attend{ background:var(--status-attend-bg); color:var(--status-attend); }
+  .badge.absent{ background:var(--status-absent-bg); color:var(--status-absent); }
+  .badge.transfer{ background:var(--status-transfer-bg); color:var(--status-transfer); }
+  .badge.makeup{ background:var(--status-makeup-bg); color:var(--status-makeup); }
+  .badge.pending{ background:var(--status-pending-bg); color:var(--status-pending); }
+  .h-sub{
+    margin-top:4px;
+    font-size:11px;
+    color:var(--text-muted);
+  }
+  .extra-history{
+    display:none;
+  }
+  .more-link{
+    margin:6px 12px 0;
+    font-size:11px;
+    text-decoration:underline;
+    color:var(--primary);
+    text-align:center;
+    cursor:pointer;
+  }
+
+  /* bottom tab bar */
+  .tabbar{
+    display:flex;
+    border-top:1px solid var(--border);
+    background:var(--surface);
+  }
+  .tab{
+    flex:1;
+    text-align:center;
+    padding:10px 0 8px;
+    font-size:10px;
+    color:var(--text-faint);
+  }
+  .tab svg{
+    width:22px;
+    height:22px;
+    margin:0 auto 4px;
+    display:block;
+  }
+  .tab.active{
+    color:var(--primary);
+    font-weight:bold;
+  }
+
+  .caption{
+    font-size:11px;
+    color:var(--text-muted);
+    margin-top:10px;
+    line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+  <div class="side">
+    <h1>出席履歴・予定確認画面</h1>
+    <div class="sub">保護者向け／スマホ／保護者専用</div>
+    <div class="note">
+      構造は元のWF（<code>wireframes/保護者_出席履歴予定確認.html</code>）と同じです。配色は<code>デザイントークン定義書.md</code>のトークンをそのまま適用しています。出席履歴のバッジは出席記録・一覧画面（運営向け）と同じ6色のステータス色（出席・欠席・振替・30分前補講・未定）を再利用しています。
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="phone">
+      <div class="screen">
+        <div class="status-bar"></div>
+
+        <div class="content">
+
+          <div class="child-name">そら</div>
+
+          <div class="next-lesson-card">
+            <div class="next-label">次回の授業予定</div>
+            <div class="next-date-row">
+              <span class="next-date">8/15(土)</span>
+              <span class="next-tag">振替</span>
+            </div>
+            <div class="next-class">基礎クラス（土曜）　10:00-11:00</div>
+            <div class="next-btn">欠席・遅刻を連絡する</div>
+          </div>
+
+          <div class="history-scroll" id="soraHistoryScroll">
+
+          <div class="history-row">
+            <div class="h-row-top">
+              <span class="h-date">8/13(木)</span>
+              <div class="h-badges">
+                <span class="badge absent">欠席</span>
+                <span class="badge transfer">振替</span>
+              </div>
+            </div>
+            <div class="h-sub">→ 8/15(土)　10:00-11:00　基礎クラス（土曜）で振替予定</div>
+          </div>
+
+          <div class="history-row">
+            <div class="h-row-top">
+              <span class="h-date">8/6(木)</span>
+              <div class="h-badges">
+                <span class="badge attend">出席</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="history-row">
+            <div class="h-row-top">
+              <span class="h-date">7/30(木)</span>
+              <div class="h-badges">
+                <span class="badge attend">出席</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="extra-history" id="soraBatch1">
+            <div class="history-row">
+              <div class="h-row-top">
+                <span class="h-date">7/23(木)</span>
+                <div class="h-badges">
+                  <span class="badge attend">出席</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="history-row">
+              <div class="h-row-top">
+                <span class="h-date">7/16(木)</span>
+                <div class="h-badges">
+                  <span class="badge absent">欠席</span>
+                  <span class="badge makeup">30分前補講</span>
+                </div>
+              </div>
+              <div class="h-sub">→ 7/23(木)　基礎クラス1組で補講予定</div>
+            </div>
+
+            <div class="history-row">
+              <div class="h-row-top">
+                <span class="h-date">7/9(木)</span>
+                <div class="h-badges">
+                  <span class="badge absent">欠席</span>
+                  <span class="badge pending">未定</span>
+                </div>
+              </div>
+              <div class="h-sub">→ 運営からのご連絡をお待ちください</div>
+            </div>
+          </div>
+
+          <div class="extra-history" id="soraBatch2">
+            <div class="history-row">
+              <div class="h-row-top">
+                <span class="h-date">7/2(木)</span>
+                <div class="h-badges">
+                  <span class="badge attend">出席</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="history-row">
+              <div class="h-row-top">
+                <span class="h-date">6/25(木)</span>
+                <div class="h-badges">
+                  <span class="badge attend">出席</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="history-row">
+              <div class="h-row-top">
+                <span class="h-date">6/18(木)</span>
+                <div class="h-badges">
+                  <span class="badge attend">出席</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          </div>
+
+          <div class="more-link" id="soraMoreLink">もっと見る</div>
+
+          <div class="child-name">ひなた</div>
+
+          <div class="next-lesson-card">
+            <div class="next-label">次回の授業予定</div>
+            <div class="next-date-row">
+              <span class="next-date">8/21(金)</span>
+            </div>
+            <div class="next-class">基礎クラス2組　16:00-17:00</div>
+            <div class="next-btn">欠席・遅刻を連絡する</div>
+          </div>
+
+          <div class="history-scroll">
+
+          <div class="history-row">
+            <div class="h-row-top">
+              <span class="h-date">8/14(金)</span>
+              <div class="h-badges">
+                <span class="badge attend">出席</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="history-row">
+            <div class="h-row-top">
+              <span class="h-date">8/7(金)</span>
+              <div class="h-badges">
+                <span class="badge attend">出席</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="history-row">
+            <div class="h-row-top">
+              <span class="h-date">7/31(金)</span>
+              <div class="h-badges">
+                <span class="badge attend">出席</span>
+              </div>
+            </div>
+          </div>
+
+          </div>
+
+          <div class="child-name">あかり</div>
+          <div class="leave-status-box">休会中です（9月再開予定）</div>
+
+          <div class="history-scroll" id="akariHistoryScroll">
+
+          <div class="history-row">
+            <div class="h-row-top">
+              <span class="h-date">7/17(木)</span>
+              <div class="h-badges">
+                <span class="badge attend">出席</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="history-row">
+            <div class="h-row-top">
+              <span class="h-date">7/10(木)</span>
+              <div class="h-badges">
+                <span class="badge attend">出席</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="history-row">
+            <div class="h-row-top">
+              <span class="h-date">7/3(木)</span>
+              <div class="h-badges">
+                <span class="badge absent">欠席</span>
+                <span class="badge pending">未定</span>
+              </div>
+            </div>
+            <div class="h-sub">→ 運営からのご連絡をお待ちください</div>
+          </div>
+
+          <div class="extra-history" id="akariBatch1">
+            <div class="history-row">
+              <div class="h-row-top">
+                <span class="h-date">6/26(木)</span>
+                <div class="h-badges">
+                  <span class="badge attend">出席</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="history-row">
+              <div class="h-row-top">
+                <span class="h-date">6/19(木)</span>
+                <div class="h-badges">
+                  <span class="badge attend">出席</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="history-row">
+              <div class="h-row-top">
+                <span class="h-date">6/12(木)</span>
+                <div class="h-badges">
+                  <span class="badge attend">出席</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          </div>
+
+          <div class="more-link" id="akariMoreLink">もっと見る</div>
+
+        </div>
+
+        <div class="tabbar">
+          <div class="tab active">
+            <svg viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="16" rx="2" fill="currentColor"></rect>
+              <line x1="7" y1="3" x2="7" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
+              <line x1="17" y1="3" x2="17" y2="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"></line>
+              <path d="M8 14.5l2.3 2.3L16 11.5" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+            出席予定
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"></path>
+            </svg>
+            欠席連絡
+          </div>
+          <div class="tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="4"></circle>
+              <path d="M4 20c0-4 4-7 8-7s8 3 8 7"></path>
+            </svg>
+            プロフィール
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      ※お子さまが複数いる場合は、タブ切り替えではなくお子さまごとのブロックを縦に並べて表示します（1人の場合はブロック1つのみ。人数が増えてもタブは使わずスクロール）。<br>
+      ※休会中のお子さまも出席履歴を表示するのは、いつまで出席していたかを確認できるようにするためです（表示ルールは他のお子さまと共通）。<br>
+      ※次回の授業カードは、通常授業だけでなく確定済みの振替・30分前補講の授業も含め、直近の日付のものを1件表示します（対象が振替・30分前補講の場合はその旨のタグを表示）。<br>
+      ※出席履歴は直近3件のみ初期表示し、4件目以降がある場合のみ「もっと見る」を表示します。押すたびに次の10件を追加読み込む形式で、全件を一度に展開しません（この例は分かりやすさのため1回あたり3件・2回分のダミーデータで表現）。全件読み込み後はボタンが「閉じる」に変わり、押すと直近3件の表示まで折りたたまれます。<br>
+      ※出席履歴の表示エリアは高さ上限つきの内側スクロール領域です（運営向け出席記録・一覧画面と同じ仕組み）。読み込んだ件数が多いお子さまがいても、そのブロック内でスクロールが完結し、後続のブロックの表示位置はずれません。<br>
+      ※「欠席・遅刻を連絡する」ボタンは、そのお子さま・次回授業回があらかじめ選択された状態で欠席・遅刻・補講登録画面に遷移します（同画面では他のお子さま〈休会中を除く〉も追加選択可能）。下部タブから直接開いた場合は未選択の状態です。<br>
+      ※出席履歴の一覧は表示専用で、保護者はここから編集できません。<br>
+      ※遅刻の連絡があった回も一覧には通常の「出席」としてのみ表示し、遅刻を示すタグは表示しません（is_lateの記録自体は内部的に保持されます）。
+    </div>
+  </div>
+
+<script>
+  function setupLoadMore(moreLinkId, batchIds){
+    var link = document.getElementById(moreLinkId);
+    var batches = batchIds.map(function(id){ return document.getElementById(id); });
+    var loaded = 0;
+    link.addEventListener('click', function(){
+      if (loaded < batches.length) {
+        batches[loaded].style.display = 'block';
+        loaded++;
+        if (loaded >= batches.length) {
+          link.textContent = '閉じる';
+        }
+      } else {
+        batches.forEach(function(b){ b.style.display = 'none'; });
+        loaded = 0;
+        link.textContent = 'もっと見る';
+      }
+    });
+  }
+  setupLoadMore('soraMoreLink', ['soraBatch1', 'soraBatch2']);
+  setupLoadMore('akariMoreLink', ['akariBatch1']);
+</script>
+</body>
+</html>

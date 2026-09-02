@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>出席管理アプリ 配色見本帳</title>
+<style>
+  :root {
+    --page-bg: #F4F5F7;
+    --surface: #FFFFFF;
+    --surface-sunken: #EEF0F3;
+    --border: #DCE0E5;
+    --text: #1F2430;
+    --text-muted: #5B6472;
+    --text-faint: #8A93A0;
+
+    --brand-primary: #2E5AAC;
+    --brand-primary-hover: #24457F;
+    --brand-primary-tint: #E8EEFA;
+    --brand-accent: #E8823C;
+    --brand-accent-hover: #C86A28;
+    --brand-accent-tint: #FCEADA;
+
+    --status-attend: #2F9E4F;
+    --status-attend-bg: #E8F7EC;
+    --status-late: #B08000;
+    --status-late-bg: #FBF3DC;
+    --status-absent: #D6483F;
+    --status-absent-bg: #FBEAE8;
+    --status-transfer: #1E8A8A;
+    --status-transfer-bg: #E4F5F5;
+    --status-makeup: #7A4FC9;
+    --status-makeup-bg: #F1EBFB;
+    --status-pending: #767C87;
+    --status-pending-bg: #EEEFF1;
+
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+    --shadow-card: 0 1px 2px rgba(31,36,48,0.06), 0 1px 1px rgba(31,36,48,0.04);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+  }
+
+  header.page {
+    margin-bottom: 40px;
+  }
+  header.page .eyebrow {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--brand-primary);
+  }
+  header.page h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 8px 0 10px;
+    text-wrap: balance;
+  }
+  header.page p {
+    color: var(--text-muted);
+    font-size: 15px;
+    max-width: 62ch;
+    margin: 0;
+  }
+
+  section { margin-bottom: 56px; }
+  section > h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+  section > .lead {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin: 0 0 20px;
+    max-width: 68ch;
+  }
+
+  .swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 14px;
+  }
+  .swatch {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+  }
+  .swatch .chip {
+    height: 64px;
+  }
+  .swatch .meta {
+    padding: 10px 12px 12px;
+  }
+  .swatch .name {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .swatch .hex {
+    font-size: 12px;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+  }
+  .swatch .use {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+
+  .status-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
+  .status-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow-card);
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+  .status-card .hex-row {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .type-scale .row {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .type-scale .row:first-child { border-top: 1px solid var(--border); }
+  .type-scale .label {
+    width: 130px;
+    flex: none;
+    font-size: 12px;
+    color: var(--text-faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .type-scale .sample {
+    color: var(--text);
+  }
+
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  pre {
+    background: var(--surface-sunken);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    overflow-x: auto;
+  }
+
+  .note {
+    font-size: 13px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--brand-accent);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <div class="eyebrow">Color Swatches</div>
+    <h1>プログラミング教室 出席管理アプリ 配色見本帳</h1>
+    <p>全トークンの色を実際に見て確認するためのページです。決定理由やアクセシビリティのルールは<code>デザイントークン定義書.md</code>、実際の画面に適用した見た目は<code>mockups/</code>フォルダのカラーモックアップを参照してください。</p>
+  </header>
+
+  <section>
+    <h2>ベースカラー</h2>
+    <p class="lead">サイト全体の軸になる色。プライマリはボタン・リンク・選択状態など操作の主色、アクセントは強調したい箇所にだけ絞って使います。</p>
+    <div class="swatch-grid">
+      <div class="swatch">
+        <div class="chip" style="background:#2E5AAC"></div>
+        <div class="meta">
+          <div class="name">Primary</div>
+          <div class="hex">#2E5AAC</div>
+          <div class="use">ボタン・リンク・アクティブ状態</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#24457F"></div>
+        <div class="meta">
+          <div class="name">Primary Hover</div>
+          <div class="hex">#24457F</div>
+          <div class="use">押下・ホバー時</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#E8EEFA"></div>
+        <div class="meta">
+          <div class="name">Primary Tint</div>
+          <div class="hex">#E8EEFA</div>
+          <div class="use">選択中タブの背景など</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#E8823C"></div>
+        <div class="meta">
+          <div class="name">Accent</div>
+          <div class="hex">#E8823C</div>
+          <div class="use">次回授業の強調など、ここぞという箇所のみ</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#C86A28"></div>
+        <div class="meta">
+          <div class="name">Accent Hover</div>
+          <div class="hex">#C86A28</div>
+          <div class="use">アクセント要素のホバー</div>
+        </div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#FCEADA"></div>
+        <div class="meta">
+          <div class="name">Accent Tint</div>
+          <div class="hex">#FCEADA</div>
+          <div class="use">お知らせ・バッジの背景</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>ニュートラル</h2>
+    <p class="lead">背景・文字・枠線。青みをわずかに含んだグレーで、プライマリカラーとの相性を持たせています。</p>
+    <div class="swatch-grid">
+      <div class="swatch">
+        <div class="chip" style="background:#F4F5F7"></div>
+        <div class="meta"><div class="name">Page BG</div><div class="hex">#F4F5F7</div><div class="use">画面全体の背景</div></div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#FFFFFF; border-bottom:1px solid #DCE0E5"></div>
+        <div class="meta"><div class="name">Surface</div><div class="hex">#FFFFFF</div><div class="use">カード・入力欄の背景</div></div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#DCE0E5"></div>
+        <div class="meta"><div class="name">Border</div><div class="hex">#DCE0E5</div><div class="use">区切り線・枠線</div></div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#1F2430"></div>
+        <div class="meta"><div class="name">Text</div><div class="hex">#1F2430</div><div class="use">見出し・本文</div></div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#5B6472"></div>
+        <div class="meta"><div class="name">Text Muted</div><div class="hex">#5B6472</div><div class="use">補足・ラベル</div></div>
+      </div>
+      <div class="swatch">
+        <div class="chip" style="background:#8A93A0"></div>
+        <div class="meta"><div class="name">Text Faint</div><div class="hex">#8A93A0</div><div class="use">プレースホルダー・無効状態</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>出席ステータスの色分け（6種）</h2>
+    <p class="lead">出席記録・一覧画面で使う6状態。色だけに頼らず、常にラベルテキストとセットで表示する前提の配色です（色覚特性への配慮、および一覧上でのスキャンのしやすさのため）。</p>
+    <div class="status-grid">
+      <div class="status-card">
+        <span class="badge" style="background:var(--status-attend-bg); color:var(--status-attend)"><span class="dot" style="background:var(--status-attend)"></span>通常出席</span>
+        <div class="hex-row">#2F9E4F ／ bg #E8F7EC</div>
+      </div>
+      <div class="status-card">
+        <span class="badge" style="background:var(--status-late-bg); color:var(--status-late)"><span class="dot" style="background:var(--status-late)"></span>遅刻</span>
+        <div class="hex-row">#B08000 ／ bg #FBF3DC</div>
+      </div>
+      <div class="status-card">
+        <span class="badge" style="background:var(--status-absent-bg); color:var(--status-absent)"><span class="dot" style="background:var(--status-absent)"></span>欠席</span>
+        <div class="hex-row">#D6483F ／ bg #FBEAE8</div>
+      </div>
+      <div class="status-card">
+        <span class="badge" style="background:var(--status-transfer-bg); color:var(--status-transfer)"><span class="dot" style="background:var(--status-transfer)"></span>振替済み</span>
+        <div class="hex-row">#1E8A8A ／ bg #E4F5F5</div>
+      </div>
+      <div class="status-card">
+        <span class="badge" style="background:var(--status-makeup-bg); color:var(--status-makeup)"><span class="dot" style="background:var(--status-makeup)"></span>30分前補講済み</span>
+        <div class="hex-row">#7A4FC9 ／ bg #F1EBFB</div>
+      </div>
+      <div class="status-card">
+        <span class="badge" style="background:var(--status-pending-bg); color:var(--status-pending)"><span class="dot" style="background:var(--status-pending)"></span>未定</span>
+        <div class="hex-row">#767C87 ／ bg #EEEFF1</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>タイプスケール</h2>
+    <p class="lead">Webフォントは導入せず、端末標準フォントのみで組みます。太さと余白でメリハリをつけます。</p>
+    <div class="type-scale">
+      <div class="row"><div class="label">28 / 700</div><div class="sample" style="font-size:28px; font-weight:700;">ページタイトル</div></div>
+      <div class="row"><div class="label">22 / 700</div><div class="sample" style="font-size:22px; font-weight:700;">セクション見出し</div></div>
+      <div class="row"><div class="label">18 / 600</div><div class="sample" style="font-size:18px; font-weight:600;">カード見出し・氏名など</div></div>
+      <div class="row"><div class="label">16 / 400</div><div class="sample" style="font-size:16px; font-weight:400;">本文・入力欄のテキスト</div></div>
+      <div class="row"><div class="label">14 / 400</div><div class="sample" style="font-size:14px; font-weight:400; color:var(--text-muted);">補足・フォームのラベル</div></div>
+      <div class="row"><div class="label">12 / 600</div><div class="sample" style="font-size:12px; font-weight:600; letter-spacing:0.04em; color:var(--text-muted);">バッジ・見出し上のラベル</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Tailwind 4 での定義例</h2>
+    <p class="lead"><code>web/resources/css/app.css</code> の <code>@theme</code> に追加するイメージです。</p>
+    <pre>@theme {
+  --color-primary: #2E5AAC;
+  --color-primary-hover: #24457F;
+  --color-primary-tint: #E8EEFA;
+  --color-accent: #E8823C;
+  --color-accent-hover: #C86A28;
+  --color-accent-tint: #FCEADA;
+
+  --color-status-attend: #2F9E4F;
+  --color-status-attend-bg: #E8F7EC;
+  --color-status-late: #B08000;
+  --color-status-late-bg: #FBF3DC;
+  --color-status-absent: #D6483F;
+  --color-status-absent-bg: #FBEAE8;
+  --color-status-transfer: #1E8A8A;
+  --color-status-transfer-bg: #E4F5F5;
+  --color-status-makeup: #7A4FC9;
+  --color-status-makeup-bg: #F1EBFB;
+  --color-status-pending: #767C87;
+  --color-status-pending-bg: #EEEFF1;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+}</pre>
+    <div class="note">bg-primary / text-primary / border-primary のようなユーティリティクラスがそのまま使えるようになります。</div>
+  </section>
+</div>
+</body>
+</html>
