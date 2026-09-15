@@ -12,6 +12,6 @@ Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name(
 Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
 Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email')->middleware('throttle:forgot-password');
 Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
-Route::post('reset-password', [NewPasswordController::class, 'store'])->name('password.update');
+Route::post('reset-password', [NewPasswordController::class, 'store'])->name('password.update')->middleware('throttle:reset-password');
 
 require __DIR__.'/settings.php';
