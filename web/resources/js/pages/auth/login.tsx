@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AuthenticatedSessionController from '@/actions/App/Http/Controllers/Auth/AuthenticatedSessionController';
+import { request } from '@/routes/password';
 
 type Props = {
     status?: string;
@@ -44,6 +45,9 @@ export default function Login({ status }: Props) {
                             <div className="grid gap-2">
                                 <div className="flex items-center">
                                     <Label htmlFor="password">Password</Label>
+                                    <TextLink href={request()} className="ml-auto text-sm" tabIndex={5}>
+                                        パスワードをお忘れの方はこちら
+                                    </TextLink>
                                 </div>
                                 <PasswordInput
                                     id="password"
