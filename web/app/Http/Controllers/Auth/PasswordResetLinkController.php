@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Mail\PasswordResetLinkMail;
+use App\Mail\PasswordResetNotRegisteredMail;
 use App\Models\Guardian;
 use App\Models\Staff;
 use Illuminate\Http\RedirectResponse;
@@ -48,6 +49,8 @@ class PasswordResetLinkController extends Controller
             ]);
 
             Mail::to($validated['email'])->send(new PasswordResetLinkMail($resetUrl));
+        } else {
+            Mail::to($validated['email'])->send(new PasswordResetNotRegisteredMail);
         }
 
         return back()->with('status', __('auth.reset_link_sent'));
