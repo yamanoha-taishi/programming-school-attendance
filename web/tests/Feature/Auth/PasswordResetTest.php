@@ -112,6 +112,19 @@ class PasswordResetTest extends TestCase
         ]);
     }
 
+    public function test_forgot_password_requests_are_rate_limited()
+    {
+        Mail::fake();
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->post(route('password.email'), ['email' => 'someone@example.com']);
+        }
+
+        $response = $this->post(route('password.email'), ['email' => 'someone@example.com']);
+
+        $response->assertTooManyRequests();
+    }
+
     public function test_password_can_be_reset_with_valid_token()
     {
         $guardian = Guardian::factory()->create();
@@ -246,5 +259,26 @@ class PasswordResetTest extends TestCase
             'email' => $email,
             'guard' => 'staff',
         ]);
+    }
+
+    public function test_reset_password_requests_are_rate_limited()
+    {
+        for ($i = 0; $i < 10; $i++) {
+            $this->post(route('password.update'), [
+                'token' => 'invalid-token',
+                'email' => 'someone@example.com',
+                'password' => 'new-password',
+                'password_confirmation' => 'new-password',
+            ]);
+        }
+
+        $response = $this->post(route('password.update'), [
+            'token' => 'invalid-token',
+            'email' => 'someone@example.com',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ]);
+
+        $response->assertTooManyRequests();
     }
 }
