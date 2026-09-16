@@ -87,6 +87,31 @@ class PasswordResetTest extends TestCase
         ]);
     }
 
+    public function test_reset_links_are_sent_independently_when_guardian_and_staff_share_email()
+    {
+        Mail::fake();
+
+        $email = 'shared@example.com';
+        $guardian = Guardian::factory()->create(['email' => $email]);
+        $staff = Staff::factory()->create(['email' => $email]);
+
+        $response = $this->post(route('password.email'), ['email' => $email]);
+
+        $response->assertSessionHas('status', __('auth.reset_link_sent'));
+
+        Mail::assertSent(PasswordResetLinkMail::class, 2);
+
+        $this->assertDatabaseHas('password_reset_tokens', [
+            'email' => $email,
+            'guard' => 'guardian',
+        ]);
+
+        $this->assertDatabaseHas('password_reset_tokens', [
+            'email' => $email,
+            'guard' => 'staff',
+        ]);
+    }
+
     public function test_password_can_be_reset_with_valid_token()
     {
         $guardian = Guardian::factory()->create();
@@ -152,5 +177,74 @@ class PasswordResetTest extends TestCase
         ]);
 
         $response->assertSessionHasErrors('email');
+    }
+
+    public function test_guardian_and_staff_can_each_independently_reset_password_when_sharing_email()
+    {
+        $email = 'shared@example.com';
+        $guardian = Guardian::factory()->create(['email' => $email]);
+        $staff = Staff::factory()->create(['email' => $email]);
+
+        $guardianToken = 'guardian-plain-token';
+        $staffToken = 'staff-plain-token';
+
+        DB::table('password_reset_tokens')->insert([
+            'email' => $email,
+            'guard' => 'guardian',
+            'token' => Hash::make($guardianToken),
+            'created_at' => now(),
+        ]);
+
+        DB::table('password_reset_tokens')->insert([
+            'email' => $email,
+            'guard' => 'staff',
+            'token' => Hash::make($staffToken),
+            'created_at' => now(),
+        ]);
+
+        // 保護者が自分のトークンで再設定する
+        $response = $this->post(route('password.update'), [
+            'token' => $guardianToken,
+            'email' => $email,
+            'password' => 'new-guardian-password',
+            'password_confirmation' => 'new-guardian-password',
+        ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('login'));
+
+        $this->assertTrue(Hash::check('new-guardian-password', $guardian->fresh()->password));
+        // スタッフのパスワードは変わっていないこと
+        $this->assertTrue(Hash::check('password', $staff->fresh()->password));
+
+        // 保護者のトークンだけ消費され、スタッフのトークンは残っていること
+        $this->assertDatabaseMissing('password_reset_tokens', [
+            'email' => $email,
+            'guard' => 'guardian',
+        ]);
+        $this->assertDatabaseHas('password_reset_tokens', [
+            'email' => $email,
+            'guard' => 'staff',
+        ]);
+
+        // スタッフも自分のトークンで独立して再設定できること
+        $response = $this->post(route('password.update'), [
+            'token' => $staffToken,
+            'email' => $email,
+            'password' => 'new-staff-password',
+            'password_confirmation' => 'new-staff-password',
+        ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('login'));
+
+        $this->assertTrue(Hash::check('new-staff-password', $staff->fresh()->password));
+
+        $this->assertDatabaseMissing('password_reset_tokens', [
+            'email' => $email,
+            'guard' => 'staff',
+        ]);
     }
 }

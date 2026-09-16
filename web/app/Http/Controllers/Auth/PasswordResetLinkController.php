@@ -32,10 +32,19 @@ class PasswordResetLinkController extends Controller
         ]);
 
         $guardian = Guardian::where('email', $validated['email'])->first();
-        $staff = $guardian ? null : Staff::where('email', $validated['email'])->first();
+        $staff = Staff::where('email', $validated['email'])->first();
 
-        if ($guardian || $staff) {
-            $guard = $guardian ? 'guardian' : 'staff';
+        if (! $guardian && ! $staff) {
+            Mail::to($validated['email'])->send(new PasswordResetNotRegisteredMail);
+
+            return back()->with('status', __('auth.reset_link_sent'));
+        }
+
+        foreach ([['guardian', $guardian], ['staff', $staff]] as [$guard, $user]) {
+            if (! $user) {
+                continue;
+            }
+
             $token = Str::random(64);
 
             DB::table('password_reset_tokens')->updateOrInsert(
@@ -49,8 +58,6 @@ class PasswordResetLinkController extends Controller
             ]);
 
             Mail::to($validated['email'])->send(new PasswordResetLinkMail($resetUrl));
-        } else {
-            Mail::to($validated['email'])->send(new PasswordResetNotRegisteredMail);
         }
 
         return back()->with('status', __('auth.reset_link_sent'));

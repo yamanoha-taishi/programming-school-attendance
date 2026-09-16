@@ -34,35 +34,50 @@ class NewPasswordController extends Controller
         ]);
 
         $guardian = Guardian::where('email', $validated['email'])->first();
-        $staff = $guardian ? null : Staff::where('email', $validated['email'])->first();
-        $user = $guardian ?? $staff;
-        $guard = $guardian ? 'guardian' : 'staff';
+        $staff = Staff::where('email', $validated['email'])->first();
 
-        $tokenRecord = $user
-            ? DB::table('password_reset_tokens')
-                ->where('email', $validated['email'])
-                ->where('guard', $guard)
-                ->first()
-            : null;
+        $matched = null;
 
-        if (! $user || ! $tokenRecord || ! Hash::check($validated['token'], $tokenRecord->token)) {
+        foreach ([['guardian', $guardian], ['staff', $staff]] as [$guard, $user]) {
+            if (! $user) {
+                continue;
+            }
+
+            $tokenRecord =
+                DB::table('password_reset_tokens')
+                    ->where('email', $validated['email'])
+                    ->where('guard', $guard)
+                    ->first();
+
+            if ($tokenRecord && Hash::check($validated['token'], $tokenRecord->token)) {
+                $matched = [
+                    'user' => $user,
+                    'guard' => $guard,
+                    'tokenRecord' => $tokenRecord,
+                ];
+                break;
+            }
+
+        }
+
+        if (! $matched) {
             throw ValidationException::withMessages([
                 'email' => [__('auth.reset_token_invalid')],
             ]);
         }
 
-        if (now()->diffInMinutes($tokenRecord->created_at, absolute: true) > 60) {
+        if (now()->diffInMinutes($matched['tokenRecord']->created_at, absolute: true) > 60) {
             throw ValidationException::withMessages([
                 'email' => [__('auth.reset_token_expired')],
             ]);
         }
 
-        $user->password = Hash::make($validated['password']);
-        $user->save();
+        $matched['user']->password = Hash::make($validated['password']);
+        $matched['user']->save();
 
         DB::table('password_reset_tokens')
             ->where('email', $validated['email'])
-            ->where('guard', $guard)
+            ->where('guard', $matched['guard'])
             ->delete();
 
         return redirect()->route('login')->with('status', __('auth.reset_success'));
