@@ -59,8 +59,9 @@ class AuthenticatedSessionController extends Controller
     {
         if (Auth::guard('guardian')->check()) {
             Auth::guard('guardian')->logout();
+        }
 
-        } else {
+        if (Auth::guard('staff')->check()) {
             Auth::guard('staff')->logout();
         }
 
