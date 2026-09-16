@@ -51,7 +51,7 @@ class NewPasswordController extends Controller
             ]);
         }
 
-        if (now()->diffInMinutes($tokenRecord->created_at) > 60) {
+        if (now()->diffInMinutes($tokenRecord->created_at, absolute: true) > 60) {
             throw ValidationException::withMessages([
                 'email' => [__('auth.reset_token_expired')],
             ]);
