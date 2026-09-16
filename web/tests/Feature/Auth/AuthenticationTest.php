@@ -83,6 +83,33 @@ class AuthenticationTest extends TestCase
         $this->assertGuest('guardian');
     }
 
+    public function test_staff_can_logout()
+    {
+        $staff = Staff::factory()->create();
+
+        $response = $this->actingAs($staff, 'staff')->post(route('logout'));
+
+        $response->assertRedirect('/');
+
+        $this->assertGuest('staff');
+    }
+
+    public function test_logout_clears_both_guards_when_both_are_authenticated()
+    {
+        $guardian = Guardian::factory()->create();
+        $staff = Staff::factory()->create();
+
+        $this->actingAs($guardian, 'guardian');
+        $this->actingAs($staff, 'staff');
+
+        $response = $this->post(route('logout'));
+
+        $response->assertRedirect('/');
+
+        $this->assertGuest('guardian');
+        $this->assertGuest('staff');
+    }
+
     public function test_users_are_rate_limited()
     {
         $guardian = Guardian::factory()->create();
