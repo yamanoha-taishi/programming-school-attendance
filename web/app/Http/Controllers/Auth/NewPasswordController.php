@@ -80,6 +80,11 @@ class NewPasswordController extends Controller
             ->where('guard', $matched['guard'])
             ->delete();
 
+        DB::table('sessions')
+            ->where('auth_id', $matched['user']->id)
+            ->where('guard', $matched['guard'])
+            ->delete();
+
         return redirect()->route('login')->with('status', __('auth.reset_success'));
     }
 }

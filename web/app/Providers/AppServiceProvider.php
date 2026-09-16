@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Extensions\GuardAwareDatabaseSessionHandler;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 
@@ -24,6 +26,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->configureGuardAwareSessionDriver();
     }
 
     /**
@@ -44,5 +47,25 @@ class AppServiceProvider extends ServiceProvider
                 ->uncompromised()
             : null,
         );
+    }
+
+    /**
+     * guardian・staffどちらのガードでログイン中かをsessionsテーブルの
+     * guard / auth_id に記録する、独自のセッションドライバを登録する。
+     *
+     * Session::extend()に渡すクロージャは、Store でラップしたものではなく
+     * ハンドラ本体（SessionHandlerInterface）を返す必要がある。ラップは
+     * SessionManager::callCustomCreator() 側が自動的に行う。
+     */
+    protected function configureGuardAwareSessionDriver(): void
+    {
+        Session::extend('guard-aware-database', function ($app) {
+            return new GuardAwareDatabaseSessionHandler(
+                $app['db']->connection($app['config']->get('session.connection')),
+                $app['config']->get('session.table'),
+                $app['config']->get('session.lifetime'),
+                $app
+            );
+        });
     }
 }
