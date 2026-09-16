@@ -2,10 +2,9 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Models\User;
+use App\Models\Guardian;
+use App\Models\Staff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\RateLimiter;
-use Laravel\Fortify\Features;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -19,71 +18,84 @@ class AuthenticationTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_users_can_authenticate_using_the_login_screen()
+    public function test_guardians_can_authenticate_using_the_login_screen()
     {
-        $user = User::factory()->create();
-
-        $response = $this->post(route('login.store'), [
-            'email' => $user->email,
-            'password' => 'password',
-        ]);
-
-        $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
-    }
-
-    public function test_users_with_two_factor_enabled_are_redirected_to_two_factor_challenge()
-    {
-        $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
-
-        Features::twoFactorAuthentication([
-            'confirm' => true,
-            'confirmPassword' => true,
-        ]);
-
-        $user = User::factory()->withTwoFactor()->create();
+        $guardian = Guardian::factory()->create();
 
         $response = $this->post(route('login'), [
-            'email' => $user->email,
+            'member_code' => $guardian->member_code,
             'password' => 'password',
         ]);
 
-        $response->assertRedirect(route('two-factor.login'));
-        $response->assertSessionHas('login.id', $user->id);
-        $this->assertGuest();
+        $this->assertAuthenticatedAs($guardian, 'guardian');
+
+        $response->assertRedirect('/');
+    }
+
+    public function test_staff_can_authenticate_using_the_login_screen()
+    {
+        $staff = Staff::factory()->create();
+
+        $response = $this->post(route('login'), [
+            'member_code' => $staff->member_code,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticatedAs($staff, 'staff');
+
+        $response->assertRedirect('/');
     }
 
     public function test_users_can_not_authenticate_with_invalid_password()
     {
-        $user = User::factory()->create();
+        $guardian = Guardian::factory()->create();
 
-        $this->post(route('login.store'), [
-            'email' => $user->email,
+        $response = $this->post(route('login'), [
+            'member_code' => $guardian->member_code,
             'password' => 'wrong-password',
         ]);
 
-        $this->assertGuest();
+        $response->assertSessionHasErrors('member_code');
+        $this->assertGuest('guardian');
+        $this->assertGuest('staff');
+    }
+
+    public function test_users_can_not_authenticate_with_nonexistent_member_code()
+    {
+        $response = $this->post(route('login'), [
+            'member_code' => '9999',
+            'password' => 'password',
+        ]);
+
+        $response->assertSessionHasErrors('member_code');
+        $this->assertGuest('guardian');
+        $this->assertGuest('staff');
     }
 
     public function test_users_can_logout()
     {
-        $user = User::factory()->create();
+        $guardian = Guardian::factory()->create();
 
-        $response = $this->actingAs($user)->post(route('logout'));
+        $response = $this->actingAs($guardian, 'guardian')->post(route('logout'));
 
-        $response->assertRedirect(route('home'));
+        $response->assertRedirect('/');
 
-        $this->assertGuest();
+        $this->assertGuest('guardian');
     }
 
     public function test_users_are_rate_limited()
     {
-        $user = User::factory()->create();
+        $guardian = Guardian::factory()->create();
 
-        RateLimiter::increment(md5('login'.implode('|', [$user->email, '127.0.0.1'])), amount: 5);
+        for ($i = 0; $i < 5; $i++) {
+            $this->post(route('login'), [
+                'member_code' => $guardian->member_code,
+                'password' => 'wrong-password',
+            ]);
+        }
 
-        $response = $this->post(route('login.store'), [
-            'email' => $user->email,
+        $response = $this->post(route('login'), [
+            'member_code' => $guardian->member_code,
             'password' => 'wrong-password',
         ]);
 
