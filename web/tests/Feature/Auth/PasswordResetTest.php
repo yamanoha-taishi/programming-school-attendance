@@ -2,23 +2,19 @@
 
 namespace Tests\Feature\Auth;
 
-use App\Models\User;
-use Illuminate\Auth\Notifications\ResetPassword;
+use App\Mail\PasswordResetLinkMail;
+use App\Mail\PasswordResetNotRegisteredMail;
+use App\Models\Guardian;
+use App\Models\Staff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Notification;
-use Laravel\Fortify\Features;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class PasswordResetTest extends TestCase
 {
     use RefreshDatabase;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->skipUnlessFortifyHas(Features::resetPasswords());
-    }
 
     public function test_reset_password_link_screen_can_be_rendered()
     {
@@ -27,67 +23,132 @@ class PasswordResetTest extends TestCase
         $response->assertOk();
     }
 
-    public function test_reset_password_link_can_be_requested()
-    {
-        Notification::fake();
-
-        $user = User::factory()->create();
-
-        $this->post(route('password.email'), ['email' => $user->email]);
-
-        Notification::assertSentTo($user, ResetPassword::class);
-    }
-
     public function test_reset_password_screen_can_be_rendered()
     {
-        Notification::fake();
+        $response = $this->get(route('password.reset', 'some-token'));
 
-        $user = User::factory()->create();
+        $response->assertOk();
+    }
 
-        $this->post(route('password.email'), ['email' => $user->email]);
+    public function test_reset_link_is_sent_when_guardian_email_is_registered()
+    {
+        Mail::fake();
 
-        Notification::assertSentTo($user, ResetPassword::class, function ($notification) {
-            $response = $this->get(route('password.reset', $notification->token));
+        $guardian = Guardian::factory()->create();
 
-            $response->assertOk();
+        $response = $this->post(route('password.email'), ['email' => $guardian->email]);
 
-            return true;
+        $response->assertSessionHas('status', __('auth.reset_link_sent'));
+
+        Mail::assertSent(PasswordResetLinkMail::class, function ($mail) use ($guardian) {
+            return $mail->hasTo($guardian->email);
         });
+
+        $this->assertDatabaseHas('password_reset_tokens', [
+            'email' => $guardian->email,
+            'guard' => 'guardian',
+        ]);
+    }
+
+    public function test_reset_link_is_sent_when_staff_email_is_registered()
+    {
+        Mail::fake();
+
+        $staff = Staff::factory()->create();
+
+        $response = $this->post(route('password.email'), ['email' => $staff->email]);
+
+        $response->assertSessionHas('status', __('auth.reset_link_sent'));
+
+        Mail::assertSent(PasswordResetLinkMail::class, function ($mail) use ($staff) {
+            return $mail->hasTo($staff->email);
+        });
+
+        $this->assertDatabaseHas('password_reset_tokens', [
+            'email' => $staff->email,
+            'guard' => 'staff',
+        ]);
+    }
+
+    public function test_not_registered_notice_is_sent_when_email_is_not_registered()
+    {
+        Mail::fake();
+
+        $response = $this->post(route('password.email'), ['email' => 'nobody@example.com']);
+
+        $response->assertSessionHas('status', __('auth.reset_link_sent'));
+
+        Mail::assertSent(PasswordResetNotRegisteredMail::class, function ($mail) {
+            return $mail->hasTo('nobody@example.com');
+        });
+
+        $this->assertDatabaseMissing('password_reset_tokens', [
+            'email' => 'nobody@example.com',
+        ]);
     }
 
     public function test_password_can_be_reset_with_valid_token()
     {
-        Notification::fake();
+        $guardian = Guardian::factory()->create();
+        $token = 'plain-text-token';
 
-        $user = User::factory()->create();
+        DB::table('password_reset_tokens')->insert([
+            'email' => $guardian->email,
+            'guard' => 'guardian',
+            'token' => Hash::make($token),
+            'created_at' => now(),
+        ]);
 
-        $this->post(route('password.email'), ['email' => $user->email]);
+        $response = $this->post(route('password.update'), [
+            'token' => $token,
+            'email' => $guardian->email,
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ]);
 
-        Notification::assertSentTo($user, ResetPassword::class, function ($notification) use ($user) {
-            $response = $this->post(route('password.update'), [
-                'token' => $notification->token,
-                'email' => $user->email,
-                'password' => 'password',
-                'password_confirmation' => 'password',
-            ]);
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('login'));
 
-            $response
-                ->assertSessionHasNoErrors()
-                ->assertRedirect(route('login'));
+        $this->assertTrue(Hash::check('new-password', $guardian->fresh()->password));
 
-            return true;
-        });
+        $this->assertDatabaseMissing('password_reset_tokens', [
+            'email' => $guardian->email,
+            'guard' => 'guardian',
+        ]);
     }
 
-    public function test_password_cannot_be_reset_with_invalid_token(): void
+    public function test_password_cannot_be_reset_with_invalid_token()
     {
-        $user = User::factory()->create();
+        $guardian = Guardian::factory()->create();
 
         $response = $this->post(route('password.update'), [
             'token' => 'invalid-token',
-            'email' => $user->email,
-            'password' => 'newpassword123',
-            'password_confirmation' => 'newpassword123',
+            'email' => $guardian->email,
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ]);
+
+        $response->assertSessionHasErrors('email');
+    }
+
+    public function test_password_cannot_be_reset_with_expired_token()
+    {
+        $guardian = Guardian::factory()->create();
+        $token = 'plain-text-token';
+
+        DB::table('password_reset_tokens')->insert([
+            'email' => $guardian->email,
+            'guard' => 'guardian',
+            'token' => Hash::make($token),
+            'created_at' => now()->subMinutes(61),
+        ]);
+
+        $response = $this->post(route('password.update'), [
+            'token' => $token,
+            'email' => $guardian->email,
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
         ]);
 
         $response->assertSessionHasErrors('email');
