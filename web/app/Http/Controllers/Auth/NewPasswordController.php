@@ -67,6 +67,11 @@ class NewPasswordController extends Controller
         }
 
         if (now()->diffInMinutes($matched['tokenRecord']->created_at, absolute: true) > 60) {
+            DB::table('password_reset_tokens')
+                ->where('email', $validated['email'])
+                ->where('guard', $matched['guard'])
+                ->delete();
+
             throw ValidationException::withMessages([
                 'email' => [__('auth.reset_token_expired')],
             ]);
