@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\Authenticate;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -51,7 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // ガード（session('active_guard')）優先に変更したもの。
         // 詳細はApp\Http\Middleware\Authenticateのコメント参照。
         $middleware->alias([
-            'auth' => \App\Http\Middleware\Authenticate::class,
+            'auth' => Authenticate::class,
         ]);
 
         $middleware->web(append: [

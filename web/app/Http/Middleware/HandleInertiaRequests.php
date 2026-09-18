@@ -49,10 +49,11 @@ class HandleInertiaRequests extends Middleware
         // 同じactive_guardを参照するように揃えてあるため、認証必須ページ・
         // 不要ページのどちらでも一貫した結果になる。
         $activeGuard = $request->session()->get('active_guard');
+        $activeGuardIsAuthenticated = in_array($activeGuard, ['guardian', 'staff'], true)
+            && Auth::guard($activeGuard)->check();
 
         $user = match (true) {
-            in_array($activeGuard, ['guardian', 'staff'], true) && Auth::guard($activeGuard)->check()
-                => Auth::guard($activeGuard)->user(),
+            $activeGuardIsAuthenticated => Auth::guard($activeGuard)->user(),
             Auth::guard('guardian')->check() => Auth::guard('guardian')->user(),
             Auth::guard('staff')->check() => Auth::guard('staff')->user(),
             default => null,
