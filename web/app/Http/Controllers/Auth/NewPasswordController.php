@@ -78,7 +78,7 @@ class NewPasswordController extends Controller
             ]);
         }
 
-        $matched['user']->password = Hash::make($validated['password']);
+        $matched['user']->password = $validated['password'];
         $matched['user']->save();
 
         DB::table('password_reset_tokens')

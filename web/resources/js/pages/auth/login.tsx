@@ -85,5 +85,5 @@ export default function Login({ status }: Props) {
 
 Login.layout = {
     title: 'Log in to your account',
-    description: 'Enter your email and password below to log in',
+    description: '会員番号とパスワードを入力してログインしてください',
 };

@@ -51,7 +51,7 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * guardian・staffどちらのガードでログイン中かをsessionsテーブルの
-     * guard / auth_id に記録する、独自のセッションドライバを登録する。
+     * guardian_id / staff_id に記録する、独自のセッションドライバを登録する。
      *
      * Session::extend()に渡すクロージャは、Store でラップしたものではなく
      * ハンドラ本体（SessionHandlerInterface）を返す必要がある。ラップは

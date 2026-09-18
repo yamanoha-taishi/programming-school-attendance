@@ -87,6 +87,18 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
+        // 退会（論理削除）時も、パスワード変更時と同様に他デバイスに
+        // 残っている当該アカウントのセッションを破棄する。今アクセス中の
+        // このセッションについては、この後 invalidate() で新しいセッションIDに
+        // 切り替えるため、ここでは自セッションを除外せず全件削除してよい
+        // （削除後にinvalidate()するため、パスワードリセット時に起きた
+        // 「削除した自分のセッション行が同じIDのまま復活する」問題は発生しない）。
+        $sessionColumn = $user instanceof Guardian ? 'guardian_id' : 'staff_id';
+
+        DB::table('sessions')
+            ->where($sessionColumn, $user->id)
+            ->delete();
+
         // Auth::logout()はデフォルトガード（web）を対象にしてしまい、
         // 実際にログイン中のguardian・staffガードには効かないため、
         // 認証中のガードを明示的にログアウトする。
