@@ -22,7 +22,7 @@ class NewPasswordController extends Controller
         return Inertia::render('auth/reset-password', [
             'token' => $token,
             'email' => $request->query('email'),
-            'passwordRules' => '',
+            'passwordRules' => Password::defaults()->toPasswordRulesString(),
         ]);
     }
 
