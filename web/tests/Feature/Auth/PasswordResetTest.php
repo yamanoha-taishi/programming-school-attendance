@@ -192,6 +192,86 @@ class PasswordResetTest extends TestCase
         $response->assertSessionHasErrors('email');
     }
 
+    public function test_password_reset_invalidates_other_sessions_for_that_account()
+    {
+        $guardian = Guardian::factory()->create();
+        $token = 'plain-text-token';
+
+        DB::table('password_reset_tokens')->insert([
+            'email' => $guardian->email,
+            'guard' => 'guardian',
+            'token' => Hash::make($token),
+            'created_at' => now(),
+        ]);
+
+        // 他デバイスでログイン中だったセッションを想定して直接1行仕込む
+        DB::table('sessions')->insert([
+            'id' => 'other-device-session',
+            'auth_id' => $guardian->id,
+            'guard' => 'guardian',
+            'payload' => base64_encode(serialize([])),
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $response = $this->post(route('password.update'), [
+            'token' => $token,
+            'email' => $guardian->email,
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('login'));
+
+        $this->assertDatabaseMissing('sessions', [
+            'id' => 'other-device-session',
+        ]);
+    }
+
+    public function test_password_reset_does_not_invalidate_unrelated_sessions()
+    {
+        $guardian = Guardian::factory()->create();
+        $otherGuardian = Guardian::factory()->create();
+        $staff = Staff::factory()->create();
+        $token = 'plain-text-token';
+
+        DB::table('password_reset_tokens')->insert([
+            'email' => $guardian->email,
+            'guard' => 'guardian',
+            'token' => Hash::make($token),
+            'created_at' => now(),
+        ]);
+
+        // 別の保護者のセッション
+        DB::table('sessions')->insert([
+            'id' => 'unrelated-guardian-session',
+            'auth_id' => $otherGuardian->id,
+            'guard' => 'guardian',
+            'payload' => base64_encode(serialize([])),
+            'last_activity' => now()->timestamp,
+        ]);
+
+        // 同一IDが偶然スタッフ側に存在するケース（idではなくguardで区別されるべき）
+        DB::table('sessions')->insert([
+            'id' => 'unrelated-staff-session',
+            'auth_id' => $guardian->id,
+            'guard' => 'staff',
+            'payload' => base64_encode(serialize([])),
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $this->post(route('password.update'), [
+            'token' => $token,
+            'email' => $guardian->email,
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ]);
+
+        $this->assertDatabaseHas('sessions', ['id' => 'unrelated-guardian-session']);
+        $this->assertDatabaseHas('sessions', ['id' => 'unrelated-staff-session']);
+    }
+
     public function test_guardian_and_staff_can_each_independently_reset_password_when_sharing_email()
     {
         $email = 'shared@example.com';
