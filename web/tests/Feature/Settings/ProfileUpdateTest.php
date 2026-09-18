@@ -90,6 +90,31 @@ class ProfileUpdateTest extends TestCase
         $this->assertSame($staff->email, $guardian->fresh()->email);
     }
 
+    public function test_profile_email_can_be_reused_after_the_previous_owner_is_soft_deleted()
+    {
+        // guardian・staffはSoftDeletesを使っているため、退会済みアカウントの
+        // 行はDBに残り続ける。そのメールアドレスを別の新しいguardianが
+        // 使えることを確認する（バリデーション・DBのユニークインデックス
+        // 両方が論理削除済みの行を除外できている必要がある）。
+        $deletedGuardian = Guardian::factory()->create(['email' => 'reused@example.com']);
+        $deletedGuardian->delete();
+
+        $guardian = Guardian::factory()->create();
+
+        $response = $this
+            ->actingAs($guardian, 'guardian')
+            ->patch(route('profile.update'), [
+                'name' => $guardian->name,
+                'email' => 'reused@example.com',
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('profile.edit'));
+
+        $this->assertSame('reused@example.com', $guardian->fresh()->email);
+    }
+
     public function test_user_can_delete_their_account()
     {
         $guardian = Guardian::factory()->create();
