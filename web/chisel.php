@@ -121,7 +121,6 @@ return Chisel::script(__DIR__)
             )->removeSection('registration');
 
             $c->files(
-                'app/Actions/Fortify/CreateNewUser.php',
                 'app/Http/Responses/RegisterResponse.php',
                 $paths['register'],
                 'tests/Feature/Auth/RegistrationTest.php',
