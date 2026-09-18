@@ -87,6 +87,20 @@ class AuthenticationTest extends TestCase
         $this->assertGuest('staff');
     }
 
+    public function test_login_with_wrong_length_member_code_is_rejected_with_a_validation_error()
+    {
+        // member_codeは4桁固定の仕様。5桁など長さが違う値は、DB照会に
+        // 到達する前にバリデーションで弾かれることを確認する。
+        $response = $this->post(route('login'), [
+            'member_code' => '12345',
+            'password' => 'password',
+        ]);
+
+        $response->assertSessionHasErrors('member_code');
+        $this->assertGuest('guardian');
+        $this->assertGuest('staff');
+    }
+
     public function test_users_can_logout()
     {
         $guardian = Guardian::factory()->create();
@@ -142,6 +156,41 @@ class AuthenticationTest extends TestCase
         ]);
 
         $response->assertTooManyRequests();
+    }
+
+    public function test_successful_login_clears_the_rate_limiter_for_that_member_code_and_ip()
+    {
+        // throttleミドルウェアは成功・失敗を区別せず必ずhit()するため、
+        // ログイン成功時に明示的にクリアしないと、数回パスワードを
+        // 間違えてから成功した直後にその1分間ログインし直せなくなって
+        // しまう（別端末での再ログインや、ログアウト後すぐの再ログインを
+        // 妨げる）。ここでは上限の5回未満（4回）だけ失敗させたあと成功させ、
+        // 直後にもう一度正しい情報でログインできることを確認する。
+        $guardian = Guardian::factory()->create();
+
+        for ($i = 0; $i < 4; $i++) {
+            $this->post(route('login'), [
+                'member_code' => $guardian->member_code,
+                'password' => 'wrong-password',
+            ]);
+        }
+
+        $this->post(route('login'), [
+            'member_code' => $guardian->member_code,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticatedAs($guardian, 'guardian');
+
+        $this->post(route('logout'));
+
+        $response = $this->post(route('login'), [
+            'member_code' => $guardian->member_code,
+            'password' => 'password',
+        ]);
+
+        $response->assertRedirect('/');
+        $this->assertAuthenticatedAs($guardian, 'guardian');
     }
 
     public function test_users_are_rate_limited_across_different_member_codes_from_the_same_ip()

@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Guardian;
 use App\Models\Staff;
+use App\Providers\RateLimitServiceProvider;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -26,9 +28,10 @@ class AuthenticatedSessionController extends Controller
     {
         // member_code・passwordを配列などの非文字列で送ると、下のWhere句や
         // レートリミッタのStr::lower()呼び出しで500エラーになってしまうため、
-        // ここで文字列であることを検証しておく。
+        // ここで文字列であることを検証しておく。member_codeは4桁固定
+        // （0001〜9999）の仕様なのでdigitsで形式も合わせて検証する。
         $validated = $request->validate([
-            'member_code' => 'required|string',
+            'member_code' => 'required|string|digits:4',
             'password' => 'required|string',
         ]);
 
@@ -38,6 +41,7 @@ class AuthenticatedSessionController extends Controller
         if ($guardian && Hash::check($validated['password'], $guardian->password)) {
             Auth::guard('guardian')->login($guardian);
             $request->session()->regenerate();
+            $this->clearLoginRateLimiter($request);
 
             return redirect()->intended('/');
         }
@@ -48,6 +52,7 @@ class AuthenticatedSessionController extends Controller
         if ($staff && Hash::check($validated['password'], $staff->password)) {
             Auth::guard('staff')->login($staff);
             $request->session()->regenerate();
+            $this->clearLoginRateLimiter($request);
 
             return redirect()->intended('/');
         }
@@ -72,5 +77,23 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerateToken();
 
         return redirect('/');
+    }
+
+    /**
+     * ログイン成功時に、そのリクエストが消費していたレート制限（member_code
+     * 単位・IP単位の両方）を解除する。throttleミドルウェアは成功・失敗を
+     * 区別せず必ずhit()するため、これを呼ばないと数回失敗してから成功した
+     * 直後にその1分間ログインし直せなくなってしまう。
+     *
+     * ThrottleRequestsミドルウェアが実際に使うキーは
+     * md5($limiterName.$limit->key)（Laravelのデフォルトでキーをハッシュ化
+     * する設定）のため、RateLimitServiceProviderで組み立てた生キーに対して
+     * 同じ変換をここでも行う。
+     */
+    private function clearLoginRateLimiter(Request $request): void
+    {
+        foreach (RateLimitServiceProvider::loginThrottleKeys($request) as $rawKey) {
+            RateLimiter::clear(md5('login'.$rawKey));
+        }
     }
 }

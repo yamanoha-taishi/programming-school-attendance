@@ -19,6 +19,30 @@ class RateLimitServiceProvider extends ServiceProvider
     }
 
     /**
+     * ログインのレート制限で使う生キー（memberCode単位／IP単位）を算出する。
+     *
+     * ログイン成功時にAuthenticatedSessionControllerがRateLimiter::clear()で
+     * 該当バケットを解除する際にも同じロジックを使うことで、キーの算出方法が
+     * 両者でずれないようにする。
+     *
+     * @return array{memberCode: string, ip: string}
+     */
+    public static function loginThrottleKeys(Request $request): array
+    {
+        // member_codeに配列などの非文字列が送られてくると、(string)
+        // キャストであってもLaravelのエラーハンドラが「Array to string
+        // conversion」をErrorExceptionへ変換するため、is_string()で
+        // 安全に確認してから使う（配列の場合は空文字扱いにする）。
+        $rawMemberCode = $request->input('member_code');
+        $memberCode = Str::transliterate(Str::lower(is_string($rawMemberCode) ? $rawMemberCode : ''));
+
+        return [
+            'memberCode' => $memberCode.'|'.$request->ip(),
+            'ip' => 'login-ip:'.$request->ip(),
+        ];
+    }
+
+    /**
      * Configure rate limiting.
      */
     private function configureRateLimiting(): void
@@ -29,18 +53,15 @@ class RateLimitServiceProvider extends ServiceProvider
             // 攻撃を防げない（1万通り試しても各バケットは5回/分に達しない）。
             // そのため、member_code単位のリミットに加えてIP単独のリミットも
             // 併用し、同一IPからの総試行回数自体に上限を設ける。
-            //
-            // member_codeに配列などの非文字列が送られてくると、(string)
-            // キャストであってもLaravelのエラーハンドラが「Array to string
-            // conversion」をErrorExceptionへ変換するため、is_string()で
-            // 安全に確認してから使う（配列の場合は空文字扱いにする）。
-            $rawMemberCode = $request->input('member_code');
-            $memberCode = Str::transliterate(Str::lower(is_string($rawMemberCode) ? $rawMemberCode : ''));
-            $throttleKey = $memberCode.'|'.$request->ip();
+            $keys = self::loginThrottleKeys($request);
 
+            // 配列内の後に評価されたリミットのレスポンスヘッダ
+            // （X-RateLimit-Remaining等）が上書きで残るため、より厳しい
+            // memberCode単位のリミットを配列の最後に置き、クライアントには
+            // 厳しい方の残り回数が見えるようにする。
             return [
-                Limit::perMinute(5)->by($throttleKey),
-                Limit::perMinute(20)->by('login-ip:'.$request->ip()),
+                Limit::perMinute(20)->by($keys['ip']),
+                Limit::perMinute(5)->by($keys['memberCode']),
             ];
         });
 

@@ -29,7 +29,7 @@ class NewPasswordController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'token' => 'required',
+            'token' => 'required|string',
             'email' => 'required|email',
             'password' => ['required', 'confirmed', Password::defaults()],
         ]);

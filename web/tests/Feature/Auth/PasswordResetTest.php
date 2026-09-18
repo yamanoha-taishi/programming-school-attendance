@@ -156,6 +156,23 @@ class PasswordResetTest extends TestCase
         ]);
     }
 
+    public function test_reset_password_with_non_string_token_is_rejected_with_a_validation_error()
+    {
+        // tokenに配列を送ると、文字列であることを前提にしているHash::check()が
+        // TypeErrorで落ちてしまう（member_codeで対応した配列入力問題と同種）。
+        // バリデーションの時点で弾かれることを確認する。
+        $guardian = Guardian::factory()->create();
+
+        $response = $this->post(route('password.update'), [
+            'token' => ['a', 'b'],
+            'email' => $guardian->email,
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ]);
+
+        $response->assertSessionHasErrors('token');
+    }
+
     public function test_password_cannot_be_reset_with_invalid_token()
     {
         $guardian = Guardian::factory()->create();
