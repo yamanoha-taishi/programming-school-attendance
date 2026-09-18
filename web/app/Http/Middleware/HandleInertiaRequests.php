@@ -42,13 +42,31 @@ class HandleInertiaRequests extends Middleware
         // 誰もログインしない）しか見ないため常にnullになってしまう。
         // guardian・staffの各ガードを直接チェックすることで、ミドルウェアの
         // 実行順序に関係なく、実際にログイン中のユーザーを取得する。
-        $user = Auth::guard('guardian')->user() ?? Auth::guard('staff')->user();
+        //
+        // 同一ブラウザで両方のガードにログイン中の場合は、直近でログイン
+        // した方（session('active_guard')）を優先する。auth:guardian,staff
+        // ミドルウェア側の優先順位も App\Http\Middleware\Authenticate で
+        // 同じactive_guardを参照するように揃えてあるため、認証必須ページ・
+        // 不要ページのどちらでも一貫した結果になる。
+        $activeGuard = $request->session()->get('active_guard');
+
+        $user = match (true) {
+            in_array($activeGuard, ['guardian', 'staff'], true) && Auth::guard($activeGuard)->check()
+                => Auth::guard($activeGuard)->user(),
+            Auth::guard('guardian')->check() => Auth::guard('guardian')->user(),
+            Auth::guard('staff')->check() => Auth::guard('staff')->user(),
+            default => null,
+        };
 
         return [
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                'user' => $user,
+                // Guardian・Staffモデルはpassword以外を隠していないため、
+                // フルの属性を渡すとnote（運用側の特記事項）等の内部情報が
+                // 全ページのHTMLに露出してしまう。フロントが実際に使う
+                // 属性だけに絞って共有する。
+                'user' => $user?->only(['id', 'name', 'email']),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

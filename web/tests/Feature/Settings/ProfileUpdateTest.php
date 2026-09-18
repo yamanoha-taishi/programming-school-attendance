@@ -34,6 +34,40 @@ class ProfileUpdateTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_settings_profile_reflects_the_most_recently_logged_in_guard_when_both_are_authenticated()
+    {
+        // 同一ブラウザで保護者としてログイン中に、スタッフとしてログイン
+        // し直した場合、設定画面はスタッフ自身のプロフィールを表示・
+        // 編集対象にすべき（旧実装はauth:guardian,staffの判定順が固定で
+        // 常にguardianが優先されてしまっていた）。
+        $guardian = Guardian::factory()->create();
+        $staff = Staff::factory()->create();
+
+        $this->post(route('login'), [
+            'member_code' => $guardian->member_code,
+            'password' => 'password',
+        ]);
+
+        $this->post(route('login'), [
+            'member_code' => $staff->member_code,
+            'password' => 'password',
+        ]);
+
+        $response = $this->get(route('profile.edit'));
+
+        $response->assertOk();
+
+        $updateResponse = $this->patch(route('profile.update'), [
+            'name' => 'スタッフ更新後の氏名',
+            'email' => $staff->email,
+        ]);
+
+        $updateResponse->assertSessionHasNoErrors();
+
+        $this->assertSame('スタッフ更新後の氏名', $staff->fresh()->name);
+        $this->assertSame($guardian->name, $guardian->fresh()->name);
+    }
+
     public function test_profile_information_can_be_updated()
     {
         $guardian = Guardian::factory()->create();

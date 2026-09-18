@@ -41,6 +41,11 @@ class AuthenticatedSessionController extends Controller
         if ($guardian && Hash::check($validated['password'], $guardian->password)) {
             Auth::guard('guardian')->login($guardian);
             $request->session()->regenerate();
+            // 直近でログインしたガードを記録する。同一ブラウザで既に
+            // 他方のガードでもログイン中だった場合に、どちらを「今の
+            // ログインユーザー」として扱うかの判定に使う
+            // （App\Http\Middleware\Authenticate・HandleInertiaRequests参照）。
+            $request->session()->put('active_guard', 'guardian');
             $this->clearLoginRateLimiter($request);
 
             return redirect()->intended('/');
@@ -52,6 +57,7 @@ class AuthenticatedSessionController extends Controller
         if ($staff && Hash::check($validated['password'], $staff->password)) {
             Auth::guard('staff')->login($staff);
             $request->session()->regenerate();
+            $request->session()->put('active_guard', 'staff');
             $this->clearLoginRateLimiter($request);
 
             return redirect()->intended('/');
@@ -80,10 +86,16 @@ class AuthenticatedSessionController extends Controller
     }
 
     /**
-     * ログイン成功時に、そのリクエストが消費していたレート制限（member_code
-     * 単位・IP単位の両方）を解除する。throttleミドルウェアは成功・失敗を
-     * 区別せず必ずhit()するため、これを呼ばないと数回失敗してから成功した
-     * 直後にその1分間ログインし直せなくなってしまう。
+     * ログイン成功時に、そのリクエストが消費していたmember_code単位の
+     * レート制限を解除する。throttleミドルウェアは成功・失敗を区別せず
+     * 必ずhit()するため、これを呼ばないと数回失敗してから成功した直後に
+     * その1分間ログインし直せなくなってしまう。
+     *
+     * IP単位のリミット（login-ip:...）は意図的にクリアしない：もしここで
+     * 一緒にクリアすると、正しい資格情報を1つ持つ攻撃者が「複数の
+     * member_codeを試す→自分の正しい情報でログイン成功→IPバケットが
+     * リセットされる」を繰り返すことで、IP単位の上限（パスワード
+     * スプレー対策）を実質無効化できてしまう。
      *
      * ThrottleRequestsミドルウェアが実際に使うキーは
      * md5($limiterName.$limit->key)（Laravelのデフォルトでキーをハッシュ化
@@ -92,8 +104,8 @@ class AuthenticatedSessionController extends Controller
      */
     private function clearLoginRateLimiter(Request $request): void
     {
-        foreach (RateLimitServiceProvider::loginThrottleKeys($request) as $rawKey) {
-            RateLimiter::clear(md5('login'.$rawKey));
-        }
+        $memberCodeKey = RateLimitServiceProvider::loginThrottleKeys($request)['memberCode'];
+
+        RateLimiter::clear(md5('login'.$memberCodeKey));
     }
 }

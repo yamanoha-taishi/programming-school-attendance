@@ -55,10 +55,13 @@ class RateLimitServiceProvider extends ServiceProvider
             // 併用し、同一IPからの総試行回数自体に上限を設ける。
             $keys = self::loginThrottleKeys($request);
 
-            // 配列内の後に評価されたリミットのレスポンスヘッダ
-            // （X-RateLimit-Remaining等）が上書きで残るため、より厳しい
-            // memberCode単位のリミットを配列の最後に置き、クライアントには
-            // 厳しい方の残り回数が見えるようにする。
+            // ThrottleRequestsのaddHeaders()は「既存のX-RateLimit-Remaining
+            // より小さい場合のみ上書きする」実装のため、実際にはどちらを
+            // 先に置いても基本的に厳しい方（残り回数が少ない方）の値が
+            // 残る。ただし両者の残り回数がたまたま同値になった場合のみ
+            // 後に評価された方が勝つため、より厳しいmemberCode単位を
+            // 配列の最後に置き、その同値ケースでも厳しい方が表示される
+            // ようにしている。
             return [
                 Limit::perMinute(20)->by($keys['ip']),
                 Limit::perMinute(5)->by($keys['memberCode']),

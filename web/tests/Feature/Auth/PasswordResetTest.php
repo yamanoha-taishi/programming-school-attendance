@@ -160,8 +160,17 @@ class PasswordResetTest extends TestCase
     {
         // tokenに配列を送ると、文字列であることを前提にしているHash::check()が
         // TypeErrorで落ちてしまう（member_codeで対応した配列入力問題と同種）。
-        // バリデーションの時点で弾かれることを確認する。
+        // 実際に有効なトークンの行を用意した上で送ることで、バリデーション
+        // ルールが無かった場合に本当にHash::check()へ到達する状況を再現し、
+        // その手前のバリデーションの時点で弾かれることを確認する。
         $guardian = Guardian::factory()->create();
+
+        DB::table('password_reset_tokens')->insert([
+            'email' => $guardian->email,
+            'guard' => 'guardian',
+            'token' => Hash::make('plain-text-token'),
+            'created_at' => now(),
+        ]);
 
         $response = $this->post(route('password.update'), [
             'token' => ['a', 'b'],

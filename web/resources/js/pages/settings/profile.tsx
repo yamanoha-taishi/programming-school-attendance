@@ -22,6 +22,15 @@ export default function Profile() {
     const passwordInput = useRef<HTMLInputElement>(null);
     const currentPasswordInput = useRef<HTMLInputElement>(null);
 
+    // このページはauth:guardian,staffミドルウェアで保護されているため
+    // 実際にはauth.userがnullになることはないが、Auth型がゲスト時のnullを
+    // 許容する型になったため、ここで明示的に絞り込んでおく。
+    if (!auth.user) {
+        return null;
+    }
+
+    const user = auth.user;
+
     return (
         <>
             <Head title="Profile settings" />
@@ -50,7 +59,7 @@ export default function Profile() {
                                 <Input
                                     id="name"
                                     className="mt-1 block w-full"
-                                    defaultValue={auth.user.name}
+                                    defaultValue={user.name}
                                     name="name"
                                     required
                                     autoComplete="name"
@@ -70,7 +79,7 @@ export default function Profile() {
                                     id="email"
                                     type="email"
                                     className="mt-1 block w-full"
-                                    defaultValue={auth.user.email ?? undefined}
+                                    defaultValue={user.email ?? undefined}
                                     name="email"
                                     required
                                     autoComplete="username"
