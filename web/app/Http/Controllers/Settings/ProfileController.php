@@ -32,7 +32,10 @@ class ProfileController extends Controller
     {
         $request->user()->fill($request->validated());
 
-        if ($request->user()->isDirty('email')) {
+        // guardian・staffはメール確認の仕組み自体を持たない
+        // （MustVerifyEmailを実装せず、email_verified_atカラムも存在しない）ため、
+        // その場合はこの処理をスキップする。
+        if ($request->user() instanceof MustVerifyEmail && $request->user()->isDirty('email')) {
             $request->user()->email_verified_at = null;
         }
 
@@ -50,7 +53,16 @@ class ProfileController extends Controller
     {
         $user = $request->user();
 
-        Auth::logout();
+        // Auth::logout()はデフォルトガード（web）を対象にしてしまい、
+        // 実際にログイン中のguardian・staffガードには効かないため、
+        // 認証中のガードを明示的にログアウトする。
+        if (Auth::guard('guardian')->check()) {
+            Auth::guard('guardian')->logout();
+        }
+
+        if (Auth::guard('staff')->check()) {
+            Auth::guard('staff')->logout();
+        }
 
         $user->delete();
 

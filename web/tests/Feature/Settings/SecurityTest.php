@@ -2,7 +2,8 @@
 
 namespace Tests\Feature\Settings;
 
-use App\Models\User;
+use App\Models\Guardian;
+use App\Models\Staff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -27,9 +28,9 @@ class SecurityTest extends TestCase
         ]);
         /* @end-chisel-passkeys */
 
-        $user = User::factory()->create();
+        $guardian = Guardian::factory()->create();
 
-        $this->actingAs($user)
+        $this->actingAs($guardian, 'guardian')
             /* @chisel-password-confirmation */
             ->withSession(['auth.password_confirmed_at' => time()])
             /* @end-chisel-password-confirmation */
@@ -50,14 +51,14 @@ class SecurityTest extends TestCase
     {
         $this->skipUnlessFortifyHas(Features::twoFactorAuthentication());
 
-        $user = User::factory()->create();
+        $guardian = Guardian::factory()->create();
 
         Features::twoFactorAuthentication([
             'confirm' => true,
             'confirmPassword' => true,
         ]);
 
-        $response = $this->actingAs($user)
+        $response = $this->actingAs($guardian, 'guardian')
             ->get(route('security.edit'));
 
         $response->assertRedirect(route('password.confirm'));
@@ -70,9 +71,9 @@ class SecurityTest extends TestCase
 
         config(['fortify.features' => []]);
 
-        $user = User::factory()->create();
+        $guardian = Guardian::factory()->create();
 
-        $this->actingAs($user)
+        $this->actingAs($guardian, 'guardian')
             /* @chisel-password-confirmation */
             ->withSession(['auth.password_confirmed_at' => time()])
             /* @end-chisel-password-confirmation */
@@ -92,10 +93,10 @@ class SecurityTest extends TestCase
 
     public function test_password_can_be_updated()
     {
-        $user = User::factory()->create();
+        $guardian = Guardian::factory()->create();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAs($guardian, 'guardian')
             ->from(route('security.edit'))
             ->put(route('user-password.update'), [
                 'current_password' => 'password',
@@ -107,15 +108,35 @@ class SecurityTest extends TestCase
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('security.edit'));
 
-        $this->assertTrue(Hash::check('new-password', $user->refresh()->password));
+        $this->assertTrue(Hash::check('new-password', $guardian->refresh()->password));
+    }
+
+    public function test_staff_can_also_update_their_password()
+    {
+        $staff = Staff::factory()->create();
+
+        $response = $this
+            ->actingAs($staff, 'staff')
+            ->from(route('security.edit'))
+            ->put(route('user-password.update'), [
+                'current_password' => 'password',
+                'password' => 'new-password',
+                'password_confirmation' => 'new-password',
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('security.edit'));
+
+        $this->assertTrue(Hash::check('new-password', $staff->refresh()->password));
     }
 
     public function test_correct_password_must_be_provided_to_update_password()
     {
-        $user = User::factory()->create();
+        $guardian = Guardian::factory()->create();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAs($guardian, 'guardian')
             ->from(route('security.edit'))
             ->put(route('user-password.update'), [
                 'current_password' => 'wrong-password',
