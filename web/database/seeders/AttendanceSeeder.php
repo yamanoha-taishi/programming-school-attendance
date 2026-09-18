@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\Lesson;
 use App\Models\Staff;
 use App\Models\Student;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -96,7 +97,7 @@ class AttendanceSeeder extends Seeder
      * 授業日が生徒の休会期間（leave_from〜leave_until）に重なっているか。
      * leave_untilがNULLの場合はleave_from以降ずっと休会中として扱う。
      */
-    private function isOnLeave(Student $student, Carbon $lessonDate): bool
+    private function isOnLeave(Student $student, CarbonInterface $lessonDate): bool
     {
         if ($student->leave_from === null) {
             return false;

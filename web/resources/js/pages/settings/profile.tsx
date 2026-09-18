@@ -1,36 +1,35 @@
 import { Form, Head, usePage } from '@inertiajs/react';
-/* @chisel-email-verification */
-import { Link } from '@inertiajs/react';
-/* @end-chisel-email-verification */
+import { useRef } from 'react';
 import DeleteUser from '@/components/delete-user';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
+import PasswordInput from '@/components/password-input';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Auth } from '@/types';
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import { edit } from '@/routes/profile';
-/* @chisel-email-verification */
-import { send } from '@/routes/verification';
-/* @end-chisel-email-verification */
 
 type PageProps = {
     auth: Auth;
+    passwordRules: string;
 };
 
-export default function Profile(
-    /* @chisel-email-verification */
-    {
-        mustVerifyEmail,
-        status,
-    }: {
-        mustVerifyEmail: boolean;
-        status?: string;
-    },
-    /* @end-chisel-email-verification */
-) {
-    const { auth } = usePage<PageProps>().props;
+export default function Profile() {
+    const { auth, passwordRules } = usePage<PageProps>().props;
+
+    const passwordInput = useRef<HTMLInputElement>(null);
+    const currentPasswordInput = useRef<HTMLInputElement>(null);
+
+    // このページはauth:guardian,staffミドルウェアで保護されているため
+    // 実際にはauth.userがnullになることはないが、Auth型がゲスト時のnullを
+    // 許容する型になったため、ここで明示的に絞り込んでおく。
+    if (!auth.user) {
+        return null;
+    }
+
+    const user = auth.user;
 
     return (
         <>
@@ -60,7 +59,7 @@ export default function Profile(
                                 <Input
                                     id="name"
                                     className="mt-1 block w-full"
-                                    defaultValue={auth.user.name}
+                                    defaultValue={user.name}
                                     name="name"
                                     required
                                     autoComplete="name"
@@ -80,7 +79,7 @@ export default function Profile(
                                     id="email"
                                     type="email"
                                     className="mt-1 block w-full"
-                                    defaultValue={auth.user.email}
+                                    defaultValue={user.email ?? undefined}
                                     name="email"
                                     required
                                     autoComplete="username"
@@ -93,37 +92,106 @@ export default function Profile(
                                 />
                             </div>
 
-                            {/* @chisel-email-verification */}
-                            {mustVerifyEmail &&
-                                auth.user.email_verified_at === null && (
-                                    <div>
-                                        <p className="-mt-4 text-sm text-muted-foreground">
-                                            Your email address is unverified.{' '}
-                                            <Link
-                                                href={send()}
-                                                as="button"
-                                                className="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
-                                            >
-                                                Click here to re-send the
-                                                verification email.
-                                            </Link>
-                                        </p>
-
-                                        {status ===
-                                            'verification-link-sent' && (
-                                            <div className="mt-2 text-sm font-medium text-green-600">
-                                                A new verification link has been
-                                                sent to your email address.
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            {/* @end-chisel-email-verification */}
-
                             <div className="flex items-center gap-4">
                                 <Button
                                     disabled={processing}
                                     data-test="update-profile-button"
+                                >
+                                    Save
+                                </Button>
+                            </div>
+                        </>
+                    )}
+                </Form>
+            </div>
+
+            <div className="space-y-6">
+                <Heading
+                    variant="small"
+                    title="Update password"
+                    description="Ensure your account is using a long, random password to stay secure"
+                />
+
+                <Form
+                    {...ProfileController.updatePassword.form()}
+                    options={{
+                        preserveScroll: true,
+                    }}
+                    resetOnError={[
+                        'password',
+                        'password_confirmation',
+                        'current_password',
+                    ]}
+                    resetOnSuccess
+                    onError={(errors) => {
+                        if (errors.password) {
+                            passwordInput.current?.focus();
+                        }
+
+                        if (errors.current_password) {
+                            currentPasswordInput.current?.focus();
+                        }
+                    }}
+                    className="space-y-6"
+                >
+                    {({ errors, processing }) => (
+                        <>
+                            <div className="grid gap-2">
+                                <Label htmlFor="current_password">
+                                    Current password
+                                </Label>
+
+                                <PasswordInput
+                                    id="current_password"
+                                    ref={currentPasswordInput}
+                                    name="current_password"
+                                    className="mt-1 block w-full"
+                                    autoComplete="current-password"
+                                    placeholder="Current password"
+                                />
+
+                                <InputError message={errors.current_password} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="password">New password</Label>
+
+                                <PasswordInput
+                                    id="password"
+                                    ref={passwordInput}
+                                    name="password"
+                                    className="mt-1 block w-full"
+                                    autoComplete="new-password"
+                                    placeholder="New password"
+                                    passwordrules={passwordRules}
+                                />
+
+                                <InputError message={errors.password} />
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="password_confirmation">
+                                    Confirm password
+                                </Label>
+
+                                <PasswordInput
+                                    id="password_confirmation"
+                                    name="password_confirmation"
+                                    className="mt-1 block w-full"
+                                    autoComplete="new-password"
+                                    placeholder="Confirm password"
+                                    passwordrules={passwordRules}
+                                />
+
+                                <InputError
+                                    message={errors.password_confirmation}
+                                />
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                                <Button
+                                    disabled={processing}
+                                    data-test="update-password-button"
                                 >
                                     Save
                                 </Button>
