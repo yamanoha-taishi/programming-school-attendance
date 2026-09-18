@@ -8,6 +8,7 @@ use App\Models\Staff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class GuardAwareDatabaseSessionHandlerTest extends TestCase
@@ -79,5 +80,13 @@ class GuardAwareDatabaseSessionHandlerTest extends TestCase
             'guardian_id' => null,
             'staff_id' => null,
         ]);
+    }
+
+    public function test_sessions_table_no_longer_has_a_user_id_column()
+    {
+        // webガードは実際には使われておらず、以前はデフォルトガードの
+        // 切り替えによりguardian・staffのIDがuser_idへ誤って混入していた。
+        // 混入元となるカラム自体を削除したことの回帰防止テスト。
+        $this->assertFalse(Schema::hasColumn('sessions', 'user_id'));
     }
 }

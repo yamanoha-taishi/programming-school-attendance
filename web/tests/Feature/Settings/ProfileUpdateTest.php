@@ -5,6 +5,7 @@ namespace Tests\Feature\Settings;
 use App\Models\Guardian;
 use App\Models\Staff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ProfileUpdateTest extends TestCase
@@ -153,5 +154,92 @@ class ProfileUpdateTest extends TestCase
             ->assertRedirect(route('profile.edit'));
 
         $this->assertNotNull($guardian->fresh());
+    }
+
+    public function test_deleting_account_removes_other_devices_sessions_for_the_same_account()
+    {
+        $guardian = Guardian::factory()->create();
+
+        // 別デバイスでログイン中だったセッションを想定して直接1行仕込む
+        DB::table('sessions')->insert([
+            'id' => 'other-device-session',
+            'guardian_id' => $guardian->id,
+            'staff_id' => null,
+            'payload' => base64_encode(serialize([])),
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $response = $this
+            ->actingAs($guardian, 'guardian')
+            ->delete(route('profile.destroy'), [
+                'password' => 'password',
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('home'));
+
+        $this->assertDatabaseMissing('sessions', [
+            'id' => 'other-device-session',
+        ]);
+    }
+
+    public function test_deleting_account_does_not_invalidate_unrelated_sessions()
+    {
+        $guardian = Guardian::factory()->create();
+        $otherGuardian = Guardian::factory()->create();
+
+        // 別の保護者のセッション（本人の退会に巻き込まれてはいけない）
+        DB::table('sessions')->insert([
+            'id' => 'unrelated-guardian-session',
+            'guardian_id' => $otherGuardian->id,
+            'staff_id' => null,
+            'payload' => base64_encode(serialize([])),
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $this
+            ->actingAs($guardian, 'guardian')
+            ->delete(route('profile.destroy'), [
+                'password' => 'password',
+            ]);
+
+        $this->assertDatabaseHas('sessions', ['id' => 'unrelated-guardian-session']);
+    }
+
+    public function test_deleting_account_invalidates_the_requesting_browsers_own_session_using_the_real_driver()
+    {
+        // phpunit.xmlはSESSION_DRIVER=arrayを強制しているため、実際の
+        // GuardAwareDatabaseSessionHandlerを通した「削除した自分のセッション
+        // 行が同じIDのまま復活しない」ことまではこのテストでしか検証できない
+        // （パスワードリセット時に起きたバグと同型の回帰確認）。
+        config(['session.driver' => 'guard-aware-database']);
+
+        $guardian = Guardian::factory()->create();
+        $cookieName = config('session.cookie');
+
+        $this->post(route('login'), [
+            'member_code' => $guardian->member_code,
+            'password' => 'password',
+        ])->assertRedirect('/');
+
+        $currentSessionId = $this->app['session']->getId();
+
+        $response = $this
+            ->withCookie($cookieName, $currentSessionId)
+            ->delete(route('profile.destroy'), [
+                'password' => 'password',
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('home'));
+
+        $this->assertDatabaseMissing('sessions', ['id' => $currentSessionId]);
+
+        // 新しいセッションIDに切り替わっており、ログアウト済みであること
+        $this->withCookie($cookieName, $currentSessionId)
+            ->get(route('profile.edit'))
+            ->assertRedirect(route('login'));
     }
 }

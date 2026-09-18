@@ -16,12 +16,18 @@ class GuardAwareDatabaseSessionHandler extends DatabaseSessionHandler
      * もう片方が記録漏れになっていた。ガードごとに専用カラムを持たせることで
      * 両方を同時に、かつ独立して記録できるようにする。
      *
+     * 親クラス（DatabaseSessionHandler）のaddUserInformation()は「その時点の
+     * デフォルトガード」のIDをsessions.user_idへ無条件に書き込む実装だが、
+     * auth:guardian,staffミドルウェアは認証成功時にデフォルトガードを
+     * guardian・staffへ切り替えてしまうため、呼び出すと本来usersテーブルの
+     * IDを指すべきuser_idにguardian・staffのIDが紛れ込む。このアプリは
+     * webガード（Userモデル）を実際には使わず、sessions.user_idカラム自体も
+     * 削除済みのため、parent::addUserInformation()は呼ばない。
+     *
      * @return $this
      */
     protected function addUserInformation(&$payload)
     {
-        parent::addUserInformation($payload);
-
         $payload['guardian_id'] = Auth::guard('guardian')->check()
             ? Auth::guard('guardian')->id()
             : null;

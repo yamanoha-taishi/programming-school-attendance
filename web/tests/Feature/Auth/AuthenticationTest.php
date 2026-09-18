@@ -72,6 +72,21 @@ class AuthenticationTest extends TestCase
         $this->assertGuest('staff');
     }
 
+    public function test_login_with_non_string_member_code_is_rejected_with_a_validation_error()
+    {
+        // member_codeに配列を送ると、文字列であることを前提にしている
+        // Where句・レートリミッタのStr::lower()呼び出しが壊れて500に
+        // なってしまうため、バリデーションの時点で弾かれることを確認する。
+        $response = $this->post(route('login'), [
+            'member_code' => ['0001', '0002'],
+            'password' => 'password',
+        ]);
+
+        $response->assertSessionHasErrors('member_code');
+        $this->assertGuest('guardian');
+        $this->assertGuest('staff');
+    }
+
     public function test_users_can_logout()
     {
         $guardian = Guardian::factory()->create();
@@ -123,6 +138,32 @@ class AuthenticationTest extends TestCase
 
         $response = $this->post(route('login'), [
             'member_code' => $guardian->member_code,
+            'password' => 'wrong-password',
+        ]);
+
+        $response->assertTooManyRequests();
+    }
+
+    public function test_users_are_rate_limited_across_different_member_codes_from_the_same_ip()
+    {
+        // member_codeは4桁と空間が狭く、member_code単位のリミット（5回/分）
+        // だけでは同一IPから会員番号を変えながら試すパスワードスプレー攻撃を
+        // 防げない。ここでは1つのmember_codeにつき1回しか試さない（個々の
+        // バケットは5回に届かない）が、IP単位の上限（20回/分）には到達し、
+        // 遮断されることを確認する。
+        $guardians = Guardian::factory()->count(20)->create();
+
+        foreach ($guardians as $guardian) {
+            $this->post(route('login'), [
+                'member_code' => $guardian->member_code,
+                'password' => 'wrong-password',
+            ]);
+        }
+
+        $anotherGuardian = Guardian::factory()->create();
+
+        $response = $this->post(route('login'), [
+            'member_code' => $anotherGuardian->member_code,
             'password' => 'wrong-password',
         ]);
 

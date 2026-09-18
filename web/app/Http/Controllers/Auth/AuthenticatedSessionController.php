@@ -24,9 +24,12 @@ class AuthenticatedSessionController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        // member_code・passwordを配列などの非文字列で送ると、下のWhere句や
+        // レートリミッタのStr::lower()呼び出しで500エラーになってしまうため、
+        // ここで文字列であることを検証しておく。
         $validated = $request->validate([
-            'member_code' => 'required',
-            'password' => 'required',
+            'member_code' => 'required|string',
+            'password' => 'required|string',
         ]);
 
         // 入力された会員番号が保護者のものかチェック
