@@ -33,8 +33,8 @@ class GuardAwareDatabaseSessionHandlerTest extends TestCase
 
         $this->assertDatabaseHas('sessions', [
             'id' => 'test-session-guardian',
-            'auth_id' => $guardian->id,
-            'guard' => 'guardian',
+            'guardian_id' => $guardian->id,
+            'staff_id' => null,
         ]);
     }
 
@@ -47,12 +47,12 @@ class GuardAwareDatabaseSessionHandlerTest extends TestCase
 
         $this->assertDatabaseHas('sessions', [
             'id' => 'test-session-staff',
-            'auth_id' => $staff->id,
-            'guard' => 'staff',
+            'guardian_id' => null,
+            'staff_id' => $staff->id,
         ]);
     }
 
-    public function test_prefers_guardian_when_both_guardian_and_staff_are_authenticated_in_the_same_session()
+    public function test_records_both_when_guardian_and_staff_are_authenticated_in_the_same_session()
     {
         $guardian = Guardian::factory()->create();
         $staff = Staff::factory()->create();
@@ -61,12 +61,12 @@ class GuardAwareDatabaseSessionHandlerTest extends TestCase
 
         $this->makeHandler()->write('test-session-both', serialize([]));
 
-        // 現状の実装では、両方ログイン中の場合guardianが優先される
-        // （スタッフ側は記録されない、既知の制限）
+        // guardian_id・staff_idそれぞれ専用カラムを持つため、
+        // 両方に同時ログインしていても両方とも記録される。
         $this->assertDatabaseHas('sessions', [
             'id' => 'test-session-both',
-            'auth_id' => $guardian->id,
-            'guard' => 'guardian',
+            'guardian_id' => $guardian->id,
+            'staff_id' => $staff->id,
         ]);
     }
 
@@ -76,8 +76,8 @@ class GuardAwareDatabaseSessionHandlerTest extends TestCase
 
         $this->assertDatabaseHas('sessions', [
             'id' => 'test-session-guest',
-            'auth_id' => null,
-            'guard' => null,
+            'guardian_id' => null,
+            'staff_id' => null,
         ]);
     }
 }

@@ -207,8 +207,8 @@ class PasswordResetTest extends TestCase
         // 他デバイスでログイン中だったセッションを想定して直接1行仕込む
         DB::table('sessions')->insert([
             'id' => 'other-device-session',
-            'auth_id' => $guardian->id,
-            'guard' => 'guardian',
+            'guardian_id' => $guardian->id,
+            'staff_id' => null,
             'payload' => base64_encode(serialize([])),
             'last_activity' => now()->timestamp,
         ]);
@@ -246,17 +246,18 @@ class PasswordResetTest extends TestCase
         // 別の保護者のセッション
         DB::table('sessions')->insert([
             'id' => 'unrelated-guardian-session',
-            'auth_id' => $otherGuardian->id,
-            'guard' => 'guardian',
+            'guardian_id' => $otherGuardian->id,
+            'staff_id' => null,
             'payload' => base64_encode(serialize([])),
             'last_activity' => now()->timestamp,
         ]);
 
-        // 同一IDが偶然スタッフ側に存在するケース（idではなくguardで区別されるべき）
+        // 同一IDが偶然スタッフ側に存在するケース（guardian_id/staff_idが
+        // 別カラムなので混同されないはず）
         DB::table('sessions')->insert([
             'id' => 'unrelated-staff-session',
-            'auth_id' => $guardian->id,
-            'guard' => 'staff',
+            'guardian_id' => null,
+            'staff_id' => $guardian->id,
             'payload' => base64_encode(serialize([])),
             'last_activity' => now()->timestamp,
         ]);
@@ -270,6 +271,70 @@ class PasswordResetTest extends TestCase
 
         $this->assertDatabaseHas('sessions', ['id' => 'unrelated-guardian-session']);
         $this->assertDatabaseHas('sessions', ['id' => 'unrelated-staff-session']);
+    }
+
+    public function test_password_reset_invalidates_the_requesting_browsers_own_dual_authenticated_session()
+    {
+        // phpunit.xmlはテストを高速化するためSESSION_DRIVERをarrayに
+        // 上書きしているが、それだと本物のGuardAwareDatabaseSessionHandlerを
+        // 一度も通らず、このテストが検証したい不具合を再現できない。
+        // そのためこのテストだけ、実際に使われるドライバに切り替える。
+        config(['session.driver' => 'guard-aware-database']);
+
+        $guardian = Guardian::factory()->create();
+        $staff = Staff::factory()->create();
+        $cookieName = config('session.cookie');
+
+        // 同じブラウザ（同じセッション）で保護者としてログインする
+        $this->post(route('login'), [
+            'member_code' => $guardian->member_code,
+            'password' => 'password',
+        ])->assertRedirect('/');
+
+        $sessionId = $this->app['session']->getId();
+
+        // ログアウトせず、同じブラウザでスタッフとしてもログインする
+        $this->withCookie($cookieName, $sessionId)->post(route('login'), [
+            'member_code' => $staff->member_code,
+            'password' => 'password',
+        ])->assertRedirect('/');
+
+        $sessionId = $this->app['session']->getId();
+
+        $this->assertDatabaseHas('sessions', [
+            'id' => $sessionId,
+            'guardian_id' => $guardian->id,
+            'staff_id' => $staff->id,
+        ]);
+
+        $token = 'plain-text-token';
+        DB::table('password_reset_tokens')->insert([
+            'email' => $staff->email,
+            'guard' => 'staff',
+            'token' => Hash::make($token),
+            'created_at' => now(),
+        ]);
+
+        // 保護者・スタッフ両方でログイン中の、まさにそのセッションから
+        // スタッフのパスワードをリセットする
+        $response = $this->withCookie($cookieName, $sessionId)->post(route('password.update'), [
+            'token' => $token,
+            'email' => $staff->email,
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('login'));
+
+        // DBの行を直接消しただけでは、このリクエスト自身のセッションが
+        // 空の行として復活してしまっていた。それが起きていないこと。
+        $this->assertDatabaseMissing('sessions', ['id' => $sessionId]);
+
+        // 同じセッションだった保護者側のログインも道連れで切れていること
+        $this->assertGuest('guardian');
+        $this->assertGuest('staff');
     }
 
     public function test_guardian_and_staff_can_each_independently_reset_password_when_sharing_email()
