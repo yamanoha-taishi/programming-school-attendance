@@ -40,7 +40,7 @@ class PasswordResetTest extends TestCase
 
         $response->assertSessionHas('status', __('auth.reset_link_sent'));
 
-        Mail::assertSent(PasswordResetLinkMail::class, function ($mail) use ($guardian) {
+        Mail::assertQueued(PasswordResetLinkMail::class, function ($mail) use ($guardian) {
             return $mail->hasTo($guardian->email);
         });
 
@@ -60,7 +60,7 @@ class PasswordResetTest extends TestCase
 
         $response->assertSessionHas('status', __('auth.reset_link_sent'));
 
-        Mail::assertSent(PasswordResetLinkMail::class, function ($mail) use ($staff) {
+        Mail::assertQueued(PasswordResetLinkMail::class, function ($mail) use ($staff) {
             return $mail->hasTo($staff->email);
         });
 
@@ -78,7 +78,7 @@ class PasswordResetTest extends TestCase
 
         $response->assertSessionHas('status', __('auth.reset_link_sent'));
 
-        Mail::assertSent(PasswordResetNotRegisteredMail::class, function ($mail) {
+        Mail::assertQueued(PasswordResetNotRegisteredMail::class, function ($mail) {
             return $mail->hasTo('nobody@example.com');
         });
 
@@ -99,7 +99,7 @@ class PasswordResetTest extends TestCase
 
         $response->assertSessionHas('status', __('auth.reset_link_sent'));
 
-        Mail::assertSent(PasswordResetLinkMail::class, 2);
+        Mail::assertQueued(PasswordResetLinkMail::class, 2);
 
         $this->assertDatabaseHas('password_reset_tokens', [
             'email' => $email,
