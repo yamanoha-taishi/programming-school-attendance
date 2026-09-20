@@ -1,0 +1,75 @@
+name: tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: web
+
+    # composer setup が実行する `php artisan migrate --force` は
+    # 実際のDB接続を必要とする（php artisan testの方はphpunit.xmlで
+    # sqliteのインメモリDBに強制されるため、こちらは不要）。本番
+    # （Render+Neon）と同じPostgreSQLをサービスコンテナとして用意し、
+    # マイグレーションがPostgreSQL固有の問題も含めてCIで検証されるようにする。
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: school_attendance
+          POSTGRES_USER: laravel
+          POSTGRES_PASSWORD: secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # .env.exampleのDB_HOST=dbはdocker-compose内のサービス名であり、
+      # このジョブ自体はコンテナ内ではなくランナー上で直接実行されるため
+      # そのままでは届かない。実環境変数はphpdotenvのimmutableな挙動により
+      # .envファイルの値より優先されるため、ここで上書きする。
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: school_attendance
+      DB_USERNAME: laravel
+      DB_PASSWORD: secret
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          # 本番（Dockerfile: php:8.4-fpm）・lint.ymlと揃える。
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      - name: Setup Application
+        run: composer setup
+
+      - name: Run CI Checks
+        run: composer ci:check

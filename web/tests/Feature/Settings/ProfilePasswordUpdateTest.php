@@ -32,6 +32,44 @@ class ProfilePasswordUpdateTest extends TestCase
         $this->assertTrue(Hash::check('new-password', $guardian->fresh()->password));
     }
 
+    public function test_password_update_targets_the_most_recently_logged_in_guard_when_both_are_authenticated()
+    {
+        // 同一ブラウザで保護者としてログイン中に、スタッフとして
+        // ログインし直した場合、パスワード変更の対象はスタッフ自身に
+        // なるべき（App\Http\Middleware\Authenticateがactive_guardを
+        // 優先することの、settings/profile/password経路でのE2E検証）。
+        $guardian = Guardian::factory()->create();
+        $staff = Staff::factory()->create();
+
+        $this->post(route('login'), [
+            'member_code' => $guardian->member_code,
+            'password' => 'password',
+        ]);
+
+        $this->post(route('login'), [
+            'member_code' => $staff->member_code,
+            'password' => 'password',
+        ]);
+
+        $response = $this->put(route('profile.password.update'), [
+            'current_password' => 'password',
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('profile.edit'));
+
+        $this->assertTrue(Hash::check('new-password', $staff->fresh()->password));
+        $this->assertTrue(Hash::check('password', $guardian->fresh()->password));
+
+        // 現在のセッション自体は維持されるため、両ガードとも
+        // ログインしたままのはず。
+        $this->assertAuthenticatedAs($guardian, 'guardian');
+        $this->assertAuthenticatedAs($staff, 'staff');
+    }
+
     public function test_staff_password_can_be_updated()
     {
         $staff = Staff::factory()->create();

@@ -190,6 +190,45 @@ class ProfileUpdateTest extends TestCase
         $this->assertNotNull($guardian->fresh());
     }
 
+    public function test_deleting_account_targets_the_most_recently_logged_in_guard_when_both_are_authenticated()
+    {
+        // 同一ブラウザで保護者としてログイン中に、スタッフとして
+        // ログインし直した場合、退会（論理削除）の対象はスタッフ自身に
+        // なるべき（App\Http\Middleware\Authenticateがactive_guardを
+        // 優先することの、profile.destroy経路でのE2E検証）。保護者の
+        // レコードもログイン状態も無関係に保たれ、削除対象であるスタッフ
+        // 側だけがログアウト・論理削除されることを確認する。
+        $guardian = Guardian::factory()->create();
+        $staff = Staff::factory()->create();
+
+        $this->post(route('login'), [
+            'member_code' => $guardian->member_code,
+            'password' => 'password',
+        ]);
+
+        $this->post(route('login'), [
+            'member_code' => $staff->member_code,
+            'password' => 'password',
+        ]);
+
+        $response = $this->delete(route('profile.destroy'), [
+            'password' => 'password',
+        ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('home'));
+
+        // 削除対象はスタッフ自身のみ。無関係な保護者のログイン状態は
+        // 巻き添えでログアウトされない。
+        $this->assertGuest('staff');
+        $this->assertAuthenticatedAs($guardian, 'guardian');
+
+        $this->assertSoftDeleted($staff);
+        $this->assertNotNull($guardian->fresh());
+        $this->assertNull($guardian->fresh()->deleted_at);
+    }
+
     public function test_deleting_account_removes_other_devices_sessions_for_the_same_account()
     {
         $guardian = Guardian::factory()->create();

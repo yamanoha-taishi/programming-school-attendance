@@ -11,6 +11,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 #[Hidden(['password'])]
 class Guardian extends Authenticatable
 {
+    /** @use HasFactory<\Database\Factories\GuardianFactory> */
     use HasFactory, SoftDeletes;
 
     /**

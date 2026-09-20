@@ -40,7 +40,13 @@ class AuthenticatedSessionController extends Controller
 
         if ($guardian && Hash::check($validated['password'], $guardian->password)) {
             Auth::guard('guardian')->login($guardian);
-            $request->session()->regenerate();
+            // trueを渡し、旧セッション行をDBから破棄した上で新しいIDを
+            // 発行する。falseのまま（既定値）だと旧行が「認証済み」の
+            // まま残ってしまう。このアプリは「ログイン中に別のガードで
+            // 再ログインする」「同じアカウントに再ログインし直す」ことを
+            // 正式なフローとしてサポートしているため、旧Cookie値が漏れた
+            // 場合に古いセッションで復帰できてしまわないようにする。
+            $request->session()->regenerate(true);
             // 直近でログインしたガードを記録する。同一ブラウザで既に
             // 他方のガードでもログイン中だった場合に、どちらを「今の
             // ログインユーザー」として扱うかの判定に使う
@@ -56,7 +62,7 @@ class AuthenticatedSessionController extends Controller
 
         if ($staff && Hash::check($validated['password'], $staff->password)) {
             Auth::guard('staff')->login($staff);
-            $request->session()->regenerate();
+            $request->session()->regenerate(true);
             $request->session()->put('active_guard', 'staff');
             $this->clearLoginRateLimiter($request);
 

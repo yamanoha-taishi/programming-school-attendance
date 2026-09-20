@@ -11,6 +11,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 #[Hidden(['password'])]
 class Staff extends Authenticatable
 {
+    /** @use HasFactory<\Database\Factories\StaffFactory> */
     use HasFactory, SoftDeletes;
 
     /**

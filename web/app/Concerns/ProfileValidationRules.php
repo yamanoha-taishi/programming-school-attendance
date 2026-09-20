@@ -2,6 +2,8 @@
 
 namespace App\Concerns;
 
+use App\Models\Guardian;
+use App\Models\Staff;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Validation\Rule;
 
@@ -47,6 +49,11 @@ trait ProfileValidationRules
      */
     protected function emailRules(?int $userId = null): array
     {
+        // get_class()の静的な戻り値型にはPHPStanの都合上falseも含まれるが、
+        // このtraitはGuardian・Staffの認証済みモデルに対してのみ使われるため、
+        // 実際にfalseになることはない。Rule::unique()はstringを要求するため、
+        // ここで型を明示しておく。
+        /** @var class-string<Guardian>|class-string<Staff> $modelClass */
         $modelClass = get_class($this->user());
 
         $rule = Rule::unique($modelClass)->whereNull('deleted_at');

@@ -58,7 +58,6 @@ class NewPasswordController extends Controller
                 ];
                 break;
             }
-
         }
 
         if (! $matched) {

@@ -24,6 +24,7 @@ class GuardAwareDatabaseSessionHandler extends DatabaseSessionHandler
      * webガード（Userモデル）を実際には使わず、sessions.user_idカラム自体も
      * 削除済みのため、parent::addUserInformation()は呼ばない。
      *
+     * @param  array<string, mixed>  $payload
      * @return $this
      */
     protected function addUserInformation(&$payload)

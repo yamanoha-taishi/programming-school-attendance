@@ -158,7 +158,7 @@ class AuthenticationTest extends TestCase
         $response->assertTooManyRequests();
     }
 
-    public function test_successful_login_clears_the_rate_limiter_for_that_member_code_and_ip()
+    public function test_successful_login_clears_the_rate_limiter_for_that_member_code()
     {
         // throttleミドルウェアは成功・失敗を区別せず必ずhit()するため、
         // ログイン成功時に明示的にクリアしないと、数回パスワードを
@@ -191,6 +191,48 @@ class AuthenticationTest extends TestCase
 
         $response->assertRedirect('/');
         $this->assertAuthenticatedAs($guardian, 'guardian');
+    }
+
+    public function test_successful_login_does_not_clear_the_ip_wide_rate_limit_bucket()
+    {
+        // member_code単位のリミット解除（クリア）がIP単位のリミットまで
+        // 巻き添えでクリアしてしまうと、正しい資格情報を1つ持つ攻撃者が
+        // 「複数のmember_codeを試す→自分の正しい情報でログイン成功→IP
+        // バケットがリセットされる」を繰り返すことで、IP単位の上限
+        // （パスワードスプレー対策）を実質無効化できてしまう。ここでは
+        // 19回別々のmember_codeで失敗させたあと、20回目に正しい資格情報
+        // でログインを成功させ、直後の21回目（また別のmember_code）が
+        // 依然としてIP単位の上限でブロックされることを確認する
+        // （IPバケットが巻き添えでクリアされていれば、この21回目は
+        // 通ってしまうはず）。
+        $guardians = Guardian::factory()->count(19)->create();
+
+        foreach ($guardians as $guardian) {
+            $this->post(route('login'), [
+                'member_code' => $guardian->member_code,
+                'password' => 'wrong-password',
+            ]);
+        }
+
+        $legitimateGuardian = Guardian::factory()->create();
+
+        $this->post(route('login'), [
+            'member_code' => $legitimateGuardian->member_code,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticatedAs($legitimateGuardian, 'guardian');
+
+        $this->post(route('logout'));
+
+        $anotherGuardian = Guardian::factory()->create();
+
+        $response = $this->post(route('login'), [
+            'member_code' => $anotherGuardian->member_code,
+            'password' => 'wrong-password',
+        ]);
+
+        $response->assertTooManyRequests();
     }
 
     public function test_users_are_rate_limited_across_different_member_codes_from_the_same_ip()

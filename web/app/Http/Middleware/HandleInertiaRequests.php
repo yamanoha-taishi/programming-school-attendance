@@ -52,6 +52,17 @@ class HandleInertiaRequests extends Middleware
         $activeGuardIsAuthenticated = in_array($activeGuard, ['guardian', 'staff'], true)
             && Auth::guard($activeGuard)->check();
 
+        // active_guardが設定されているのに、実際にはそのガードで認証
+        // されていない場合（論理削除によりモデルの既定スコープから
+        // 見えなくなった、単純にログアウトされた等）、古い値をそのまま
+        // セッションに残し続けると、後日そのアカウントが復元された際に
+        // 改めてログインし直さなくても古いセッションのままアクセスが
+        // 復活してしまう。認証済みでなくなった時点でこのキー自体を
+        // 消しておくことで、復元後は改めてログインが必要になる。
+        if (in_array($activeGuard, ['guardian', 'staff'], true) && ! $activeGuardIsAuthenticated) {
+            $request->session()->forget('active_guard');
+        }
+
         $user = match (true) {
             $activeGuardIsAuthenticated => Auth::guard($activeGuard)->user(),
             Auth::guard('guardian')->check() => Auth::guard('guardian')->user(),
