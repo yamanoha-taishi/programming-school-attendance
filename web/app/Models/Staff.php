@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\StaffFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,7 +12,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 #[Hidden(['password'])]
 class Staff extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\StaffFactory> */
+    /** @use HasFactory<StaffFactory> */
     use HasFactory, SoftDeletes;
 
     /**

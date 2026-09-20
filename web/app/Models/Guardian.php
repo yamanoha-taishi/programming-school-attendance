@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\GuardianFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -11,7 +12,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 #[Hidden(['password'])]
 class Guardian extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\GuardianFactory> */
+    /** @use HasFactory<GuardianFactory> */
     use HasFactory, SoftDeletes;
 
     /**
