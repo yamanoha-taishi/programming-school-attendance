@@ -44,7 +44,11 @@ export default function Login({ status }: Props) {
                             <div className="grid gap-2">
                                 <div className="flex items-center">
                                     <Label htmlFor="password">Password</Label>
-                                    <TextLink href={request()} className="ml-auto text-sm" tabIndex={3}>
+                                    <TextLink
+                                        href={request()}
+                                        className="ml-auto text-sm"
+                                        tabIndex={3}
+                                    >
                                         パスワードをお忘れの方はこちら
                                     </TextLink>
                                 </div>
