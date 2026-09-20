@@ -58,10 +58,16 @@ class AttendanceSeeder extends Seeder
     /** @var int[] */
     private array $staffIds = [];
 
-    /** @var Collection<int, Collection<int, Lesson>> section_id => 過去のlessons */
+    // Eloquent\Collection<TKey, TModel>はTModelがModelのサブクラスであることを
+    // 要求するため、「グループの入れ物」である外側のコレクションをEloquent\Collection
+    // として宣言することはできない（中身がCollectionであってModelではないため）。
+    // そのため$pastLessonsをgroupBy()する前にcollect()でSupport\Collectionへ変換し、
+    // 外側・内側とも実際にSupport\Collectionが代入されるようにしている。
+
+    /** @var Collection<int|string, Collection<int, Lesson>> section_id => 過去のlessons */
     private Collection $lessonsBySection;
 
-    /** @var Collection<int, Collection<int, Lesson>> lesson_plan_id => 過去のlessons */
+    /** @var Collection<int|string, Collection<int, Lesson>> lesson_plan_id => 過去のlessons */
     private Collection $lessonsByPlan;
 
     /**
@@ -73,9 +79,15 @@ class AttendanceSeeder extends Seeder
         $this->recentCutoff = $this->today->copy()->subDays(self::RECENT_DAYS);
         $this->staffIds = Staff::pluck('id')->all();
 
-        $pastLessons = Lesson::where('date', '<', $this->today->toDateString())
-            ->orderBy('date')
-            ->get(['id', 'lesson_plan_id', 'section_id', 'date']);
+        // collect()でEloquent\CollectionからSupport\Collectionに変換してから
+        // groupBy()する。Eloquent\Collectionのままgroupby()すると、外側の
+        // 「グループの入れ物」もEloquent\Collectionのまま返ってきてしまい、
+        // 上記のとおり型として不正になる。
+        $pastLessons = collect(
+            Lesson::where('date', '<', $this->today->toDateString())
+                ->orderBy('date')
+                ->get(['id', 'lesson_plan_id', 'section_id', 'date'])
+        );
 
         $this->lessonsBySection = $pastLessons->groupBy('section_id');
         $this->lessonsByPlan = $pastLessons->groupBy('lesson_plan_id');

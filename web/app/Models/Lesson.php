@@ -21,16 +21,25 @@ class Lesson extends Model
         'date' => 'date',
     ];
 
+    /**
+     * @return BelongsTo<LessonPlan, $this>
+     */
     public function lessonPlan(): BelongsTo
     {
         return $this->belongsTo(LessonPlan::class);
     }
 
+    /**
+     * @return BelongsTo<Section, $this>
+     */
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class);
     }
 
+    /**
+     * @return HasMany<Attendance, $this>
+     */
     public function attendances(): HasMany
     {
         return $this->hasMany(Attendance::class);

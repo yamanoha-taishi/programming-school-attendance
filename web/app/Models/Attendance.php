@@ -27,21 +27,33 @@ class Attendance extends Model
         'is_late' => 'boolean',
     ];
 
+    /**
+     * @return BelongsTo<Lesson, $this>
+     */
     public function lesson(): BelongsTo
     {
         return $this->belongsTo(Lesson::class);
     }
 
+    /**
+     * @return BelongsTo<Lesson, $this>
+     */
     public function makeupLesson(): BelongsTo
     {
         return $this->belongsTo(Lesson::class, 'makeup_lesson_id');
     }
 
+    /**
+     * @return BelongsTo<Staff, $this>
+     */
     public function staff(): BelongsTo
     {
         return $this->belongsTo(Staff::class);
     }
 
+    /**
+     * @return BelongsTo<Student, $this>
+     */
     public function student(): BelongsTo
     {
         return $this->belongsTo(Student::class);

@@ -36,6 +36,9 @@ class Staff extends Authenticatable
         'note',
     ];
 
+    /**
+     * @return HasMany<Attendance, $this>
+     */
     public function attendances(): HasMany
     {
         return $this->hasMany(Attendance::class);
