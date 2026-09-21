@@ -75,9 +75,17 @@ class StudentFactory extends Factory
         return $this->state(function () {
             $leaveFrom = fake()->dateTimeBetween('-6 months', 'now')->format('Y-m-01');
 
+            // fake()->optional()はFakerの動的プロキシで、PHPStanからは戻り値の
+            // 型が常に非nullに見えてしまい、元の?->が「不要なnullセーフ演算子」
+            // として誤検知されていた（実際には50%の確率でnullを返す）。
+            // fake()->boolean()で分岐を明示することで、挙動を変えずに解消する。
+            $leaveUntil = fake()->boolean(50)
+                ? fake()->dateTimeBetween($leaveFrom, '+3 months')->format('Y-m-t')
+                : null;
+
             return [
                 'leave_from' => $leaveFrom,
-                'leave_until' => fake()->optional(0.5)->dateTimeBetween($leaveFrom, '+3 months')?->format('Y-m-t'),
+                'leave_until' => $leaveUntil,
             ];
         });
     }

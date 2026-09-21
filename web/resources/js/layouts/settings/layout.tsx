@@ -8,17 +8,11 @@ import { cn, toUrl } from '@/lib/utils';
 import type { NavItem } from '@/types';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit } from '@/routes/profile';
-import { edit as editSecurity } from '@/routes/security';
 
 const sidebarNavItems: NavItem[] = [
     {
         title: 'Profile',
         href: edit(),
-        icon: null,
-    },
-    {
-        title: 'Security',
-        href: editSecurity(),
         icon: null,
     },
     {

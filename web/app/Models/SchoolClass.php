@@ -15,11 +15,17 @@ class SchoolClass extends Model
         'display_name',
     ];
 
+    /**
+     * @return HasMany<LessonPlan, $this>
+     */
     public function lessonPlans(): HasMany
     {
         return $this->hasMany(LessonPlan::class);
     }
 
+    /**
+     * @return HasMany<Student, $this>
+     */
     public function students(): HasMany
     {
         return $this->hasMany(Student::class);

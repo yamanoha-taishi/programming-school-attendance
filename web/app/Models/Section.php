@@ -17,16 +17,25 @@ class Section extends Model
         'end_time',
     ];
 
+    /**
+     * @return HasMany<Holiday, $this>
+     */
     public function holidays(): HasMany
     {
         return $this->hasMany(Holiday::class);
     }
 
+    /**
+     * @return HasMany<Lesson, $this>
+     */
     public function lessons(): HasMany
     {
         return $this->hasMany(Lesson::class);
     }
 
+    /**
+     * @return HasMany<Student, $this>
+     */
     public function students(): HasMany
     {
         return $this->hasMany(Student::class);

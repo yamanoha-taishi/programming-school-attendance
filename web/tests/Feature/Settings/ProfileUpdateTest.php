@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Settings;
 
-use App\Models\User;
+use App\Models\Guardian;
+use App\Models\Staff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ProfileUpdateTest extends TestCase
@@ -12,61 +14,148 @@ class ProfileUpdateTest extends TestCase
 
     public function test_profile_page_is_displayed()
     {
-        $user = User::factory()->create();
+        $guardian = Guardian::factory()->create();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAs($guardian, 'guardian')
             ->get(route('profile.edit'));
 
         $response->assertOk();
     }
 
-    public function test_profile_information_can_be_updated()
+    public function test_staff_can_also_view_the_profile_page()
     {
-        $user = User::factory()->create();
+        $staff = Staff::factory()->create();
 
         $response = $this
-            ->actingAs($user)
-            ->patch(route('profile.update'), [
-                'name' => 'Test User',
-                'email' => 'test@example.com',
-            ]);
+            ->actingAs($staff, 'staff')
+            ->get(route('profile.edit'));
 
-        $response
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('profile.edit'));
-
-        $user->refresh();
-
-        $this->assertSame('Test User', $user->name);
-        $this->assertSame('test@example.com', $user->email);
-        $this->assertNull($user->email_verified_at);
+        $response->assertOk();
     }
 
-    public function test_email_verification_status_is_unchanged_when_the_email_address_is_unchanged()
+    public function test_settings_profile_reflects_the_most_recently_logged_in_guard_when_both_are_authenticated()
     {
-        $user = User::factory()->create();
+        // 同一ブラウザで保護者としてログイン中に、スタッフとしてログイン
+        // し直した場合、設定画面はスタッフ自身のプロフィールを表示・
+        // 編集対象にすべき（旧実装はauth:guardian,staffの判定順が固定で
+        // 常にguardianが優先されてしまっていた）。
+        $guardian = Guardian::factory()->create();
+        $staff = Staff::factory()->create();
+
+        $this->post(route('login'), [
+            'member_code' => $guardian->member_code,
+            'password' => 'password',
+        ]);
+
+        $this->post(route('login'), [
+            'member_code' => $staff->member_code,
+            'password' => 'password',
+        ]);
+
+        $response = $this->get(route('profile.edit'));
+
+        $response->assertOk();
+
+        $updateResponse = $this->patch(route('profile.update'), [
+            'name' => 'スタッフ更新後の氏名',
+            'email' => $staff->email,
+        ]);
+
+        $updateResponse->assertSessionHasNoErrors();
+
+        $this->assertSame('スタッフ更新後の氏名', $staff->fresh()->name);
+        $this->assertSame($guardian->name, $guardian->fresh()->name);
+    }
+
+    public function test_profile_information_can_be_updated()
+    {
+        $guardian = Guardian::factory()->create();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAs($guardian, 'guardian')
             ->patch(route('profile.update'), [
-                'name' => 'Test User',
-                'email' => $user->email,
+                'name' => 'Test Guardian',
+                'email' => 'test-guardian@example.com',
             ]);
 
         $response
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('profile.edit'));
 
-        $this->assertNotNull($user->refresh()->email_verified_at);
+        $guardian->refresh();
+
+        $this->assertSame('Test Guardian', $guardian->name);
+        $this->assertSame('test-guardian@example.com', $guardian->email);
+    }
+
+    public function test_profile_email_must_be_unique_among_the_same_guard()
+    {
+        $guardian = Guardian::factory()->create();
+        $otherGuardian = Guardian::factory()->create();
+
+        $response = $this
+            ->actingAs($guardian, 'guardian')
+            ->patch(route('profile.update'), [
+                'name' => $guardian->name,
+                'email' => $otherGuardian->email,
+            ]);
+
+        $response->assertSessionHasErrors('email');
+    }
+
+    public function test_profile_email_can_match_an_account_in_the_other_guard()
+    {
+        // guardianとstaffが同じメールアドレスを共有することは仕様上許容されているため、
+        // 一意性チェックが誤ってブロックしないことを確認する。
+        $guardian = Guardian::factory()->create();
+        $staff = Staff::factory()->create();
+
+        $response = $this
+            ->actingAs($guardian, 'guardian')
+            ->patch(route('profile.update'), [
+                'name' => $guardian->name,
+                'email' => $staff->email,
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('profile.edit'));
+
+        $this->assertSame($staff->email, $guardian->fresh()->email);
+    }
+
+    public function test_profile_email_can_be_reused_after_the_previous_owner_is_soft_deleted()
+    {
+        // guardian・staffはSoftDeletesを使っているため、退会済みアカウントの
+        // 行はDBに残り続ける。そのメールアドレスを別の新しいguardianが
+        // 使えることを確認する（バリデーション・DBのユニークインデックス
+        // 両方が論理削除済みの行を除外できている必要がある）。
+        $deletedGuardian = Guardian::factory()->create(['email' => 'reused@example.com']);
+        $deletedGuardian->delete();
+
+        $guardian = Guardian::factory()->create();
+
+        $response = $this
+            ->actingAs($guardian, 'guardian')
+            ->patch(route('profile.update'), [
+                'name' => $guardian->name,
+                'email' => 'reused@example.com',
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('profile.edit'));
+
+        $this->assertSame('reused@example.com', $guardian->fresh()->email);
     }
 
     public function test_user_can_delete_their_account()
     {
-        $user = User::factory()->create();
+        $guardian = Guardian::factory()->create();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAs($guardian, 'guardian')
             ->delete(route('profile.destroy'), [
                 'password' => 'password',
             ]);
@@ -75,16 +164,20 @@ class ProfileUpdateTest extends TestCase
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('home'));
 
-        $this->assertGuest();
-        $this->assertNull($user->fresh());
+        $this->assertGuest('guardian');
+
+        // GuardianはSoftDeletesを使っているため、行自体は消えず
+        // deleted_atが入る（fresh()はグローバルスコープを無視するため
+        // 論理削除後も行を取得できる。物理削除ではないことに注意）。
+        $this->assertSoftDeleted($guardian);
     }
 
     public function test_correct_password_must_be_provided_to_delete_account()
     {
-        $user = User::factory()->create();
+        $guardian = Guardian::factory()->create();
 
         $response = $this
-            ->actingAs($user)
+            ->actingAs($guardian, 'guardian')
             ->from(route('profile.edit'))
             ->delete(route('profile.destroy'), [
                 'password' => 'wrong-password',
@@ -94,6 +187,132 @@ class ProfileUpdateTest extends TestCase
             ->assertSessionHasErrors('password')
             ->assertRedirect(route('profile.edit'));
 
-        $this->assertNotNull($user->fresh());
+        $this->assertNotNull($guardian->fresh());
+    }
+
+    public function test_deleting_account_targets_the_most_recently_logged_in_guard_when_both_are_authenticated()
+    {
+        // 同一ブラウザで保護者としてログイン中に、スタッフとして
+        // ログインし直した場合、退会（論理削除）の対象はスタッフ自身に
+        // なるべき（App\Http\Middleware\Authenticateがactive_guardを
+        // 優先することの、profile.destroy経路でのE2E検証）。保護者の
+        // レコードもログイン状態も無関係に保たれ、削除対象であるスタッフ
+        // 側だけがログアウト・論理削除されることを確認する。
+        $guardian = Guardian::factory()->create();
+        $staff = Staff::factory()->create();
+
+        $this->post(route('login'), [
+            'member_code' => $guardian->member_code,
+            'password' => 'password',
+        ]);
+
+        $this->post(route('login'), [
+            'member_code' => $staff->member_code,
+            'password' => 'password',
+        ]);
+
+        $response = $this->delete(route('profile.destroy'), [
+            'password' => 'password',
+        ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('home'));
+
+        // 削除対象はスタッフ自身のみ。無関係な保護者のログイン状態は
+        // 巻き添えでログアウトされない。
+        $this->assertGuest('staff');
+        $this->assertAuthenticatedAs($guardian, 'guardian');
+
+        $this->assertSoftDeleted($staff);
+        $this->assertNotNull($guardian->fresh());
+        $this->assertNull($guardian->fresh()->deleted_at);
+    }
+
+    public function test_deleting_account_removes_other_devices_sessions_for_the_same_account()
+    {
+        $guardian = Guardian::factory()->create();
+
+        // 別デバイスでログイン中だったセッションを想定して直接1行仕込む
+        DB::table('sessions')->insert([
+            'id' => 'other-device-session',
+            'guardian_id' => $guardian->id,
+            'staff_id' => null,
+            'payload' => base64_encode(serialize([])),
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $response = $this
+            ->actingAs($guardian, 'guardian')
+            ->delete(route('profile.destroy'), [
+                'password' => 'password',
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('home'));
+
+        $this->assertDatabaseMissing('sessions', [
+            'id' => 'other-device-session',
+        ]);
+    }
+
+    public function test_deleting_account_does_not_invalidate_unrelated_sessions()
+    {
+        $guardian = Guardian::factory()->create();
+        $otherGuardian = Guardian::factory()->create();
+
+        // 別の保護者のセッション（本人の退会に巻き込まれてはいけない）
+        DB::table('sessions')->insert([
+            'id' => 'unrelated-guardian-session',
+            'guardian_id' => $otherGuardian->id,
+            'staff_id' => null,
+            'payload' => base64_encode(serialize([])),
+            'last_activity' => now()->timestamp,
+        ]);
+
+        $this
+            ->actingAs($guardian, 'guardian')
+            ->delete(route('profile.destroy'), [
+                'password' => 'password',
+            ]);
+
+        $this->assertDatabaseHas('sessions', ['id' => 'unrelated-guardian-session']);
+    }
+
+    public function test_deleting_account_invalidates_the_requesting_browsers_own_session_using_the_real_driver()
+    {
+        // phpunit.xmlはSESSION_DRIVER=arrayを強制しているため、実際の
+        // GuardAwareDatabaseSessionHandlerを通した「削除した自分のセッション
+        // 行が同じIDのまま復活しない」ことまではこのテストでしか検証できない
+        // （パスワードリセット時に起きたバグと同型の回帰確認）。
+        config(['session.driver' => 'guard-aware-database']);
+
+        $guardian = Guardian::factory()->create();
+        $cookieName = config('session.cookie');
+
+        $this->post(route('login'), [
+            'member_code' => $guardian->member_code,
+            'password' => 'password',
+        ])->assertRedirect('/');
+
+        $currentSessionId = $this->app['session']->getId();
+
+        $response = $this
+            ->withCookie($cookieName, $currentSessionId)
+            ->delete(route('profile.destroy'), [
+                'password' => 'password',
+            ]);
+
+        $response
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('home'));
+
+        $this->assertDatabaseMissing('sessions', ['id' => $currentSessionId]);
+
+        // 新しいセッションIDに切り替わっており、ログアウト済みであること
+        $this->withCookie($cookieName, $currentSessionId)
+            ->get(route('profile.edit'))
+            ->assertRedirect(route('login'));
     }
 }

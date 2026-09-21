@@ -17,11 +17,17 @@ class LessonPlan extends Model
         'title',
     ];
 
+    /**
+     * @return BelongsTo<SchoolClass, $this>
+     */
     public function schoolClass(): BelongsTo
     {
         return $this->belongsTo(SchoolClass::class);
     }
 
+    /**
+     * @return HasMany<Lesson, $this>
+     */
     public function lessons(): HasMany
     {
         return $this->hasMany(Lesson::class);

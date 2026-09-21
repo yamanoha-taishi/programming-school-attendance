@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -35,11 +36,57 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        // このメソッドはグローバルなwebミドルウェアグループの一部として、
+        // ルート個別のauth:guardian,staffミドルウェアより先に実行される。
+        // $request->user()はその時点のデフォルトガード（web、実際には
+        // 誰もログインしない）しか見ないため常にnullになってしまう。
+        // guardian・staffの各ガードを直接チェックすることで、ミドルウェアの
+        // 実行順序に関係なく、実際にログイン中のユーザーを取得する。
+        //
+        // 同一ブラウザで両方のガードにログイン中の場合は、直近でログイン
+        // した方（session('active_guard')）を優先する。auth:guardian,staff
+        // ミドルウェア側の優先順位も App\Http\Middleware\Authenticate で
+        // 同じactive_guardを参照するように揃えてあるため、認証必須ページ・
+        // 不要ページのどちらでも一貫した結果になる。
+        $activeGuard = $request->session()->get('active_guard');
+        $activeGuardIsAuthenticated = in_array($activeGuard, ['guardian', 'staff'], true)
+            && Auth::guard($activeGuard)->check();
+
+        // active_guardが設定されているのに、実際にはそのガードで認証
+        // されていない場合（論理削除によりモデルの既定スコープから
+        // 見えなくなった、単純にログアウトされた等）、古い値をそのまま
+        // セッションに残し続けると、後日そのアカウントが復元された際に、
+        // 削除・復元の間もずっとログインし続けていた他方のガードを
+        // 差し置いて、古い優先順位がそのまま復活してしまう。
+        // 消しておくことで、復元後もその不当な優先順位の復活だけは
+        // 防げる。
+        //
+        // 注意: これはあくまで「どちらを優先表示するか」のマーカーを
+        // 消すだけであり、ガードそのものの認証状態（セッションの
+        // login_staff_<hash>等のキー）は論理削除・復元だけでは失効
+        // しない。復元されれば元のセッションのままAuth::guard('staff')
+        // ->check()は再びtrueに戻り、改めてのログインは不要になる
+        // （これは別の論点であり、ここでは扱わない）。
+        if (in_array($activeGuard, ['guardian', 'staff'], true) && ! $activeGuardIsAuthenticated) {
+            $request->session()->forget('active_guard');
+        }
+
+        $user = match (true) {
+            $activeGuardIsAuthenticated => Auth::guard($activeGuard)->user(),
+            Auth::guard('guardian')->check() => Auth::guard('guardian')->user(),
+            Auth::guard('staff')->check() => Auth::guard('staff')->user(),
+            default => null,
+        };
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
             'auth' => [
-                'user' => $request->user(),
+                // Guardian・Staffモデルはpassword以外を隠していないため、
+                // フルの属性を渡すとnote（運用側の特記事項）等の内部情報が
+                // 全ページのHTMLに露出してしまう。フロントが実際に使う
+                // 属性だけに絞って共有する。
+                'user' => $user?->only(['id', 'name', 'email']),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

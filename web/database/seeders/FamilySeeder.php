@@ -62,7 +62,18 @@ class FamilySeeder extends Seeder
 
                 if ($placement === null) {
                     // どの授業実施単位も定員（6名）に達したため、これ以上は生徒を作らない
-                    $this->command?->warn('全ての授業実施単位が定員に達したため、FamilySeederを打ち切ります。');
+                    // ($commandはLaravel本体のphpdoc上は非nullable型だが、artisanの
+                    // 通常フロー外でSeederが直接インスタンス化された場合は未設定の
+                    // ままになり得るため、Illuminate\Database\Seeder自身と同じ
+                    // isset()チェックで防御する。Larastanは$commandの宣言型が
+                    // 非nullableであることを理由にisset()自体も「意味がない」と
+                    // 指摘してくるが、これはLaravel本体のphpdocが実態〈未初期化なら
+                    // null〉を反映していないことによる誤検知のため、この行だけ
+                    // 抑制する)
+                    // @phpstan-ignore-next-line isset.property
+                    if (isset($this->command)) {
+                        $this->command->warn('全ての授業実施単位が定員に達したため、FamilySeederを打ち切ります。');
+                    }
 
                     return;
                 }

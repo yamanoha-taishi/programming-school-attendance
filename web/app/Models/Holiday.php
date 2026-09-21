@@ -17,6 +17,9 @@ class Holiday extends Model
         'date' => 'date',
     ];
 
+    /**
+     * @return BelongsTo<Section, $this>
+     */
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class);
