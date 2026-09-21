@@ -40,12 +40,13 @@ class AuthenticatedSessionController extends Controller
 
         if ($guardian && Hash::check($validated['password'], $guardian->password)) {
             Auth::guard('guardian')->login($guardian);
-            // trueを渡し、旧セッション行をDBから破棄した上で新しいIDを
-            // 発行する。falseのまま（既定値）だと旧行が「認証済み」の
-            // まま残ってしまう。このアプリは「ログイン中に別のガードで
-            // 再ログインする」「同じアカウントに再ログインし直す」ことを
-            // 正式なフローとしてサポートしているため、旧Cookie値が漏れた
-            // 場合に古いセッションで復帰できてしまわないようにする。
+            // 実はAuth::guard(...)->login()の内部（SessionGuard::
+            // updateSession()）で、この時点で既にsession()->regenerate(true)
+            // が1回走っている（旧セッション行は既に破棄済み）。よってこの
+            // 呼び出しは新IDに対する冗長な再生成（無意味な空振りDELETEが
+            // 1本増えるだけ）だが、Laravel標準スキャフォールド（Breeze等）
+            // に倣ってセッション固定化対策を明示的なコードとして残す目的で
+            // あえて残している。実質的な安全性はlogin()自身が担保している。
             $request->session()->regenerate(true);
             // 直近でログインしたガードを記録する。同一ブラウザで既に
             // 他方のガードでもログイン中だった場合に、どちらを「今の

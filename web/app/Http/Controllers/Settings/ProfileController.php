@@ -98,6 +98,15 @@ class ProfileController extends Controller
         // 全件削除してよい（削除後にregenerate(true)するため、
         // パスワードリセット時に起きた「削除した自分のセッション行が
         // 同じIDのまま復活する」問題は発生しない）。
+        //
+        // 注意: この削除は行単位（sessionsテーブルの1行）なので、他デバイスの
+        // 行で、削除対象のガードと無関係な方のガードも同一行に同時認証されて
+        // いた場合（例: 家族共用のタブレットで保護者・スタッフ双方が
+        // ログイン中だったなど）は、そのデバイス側では無関係な方も巻き添えで
+        // ログアウトされる。これは意図した割り切りであり（退会したアカウントの
+        // セッションを確実に締め出すことを優先）、下のAuth::guard($guardName)
+        // ->logout()が解消しているのは「今アクセス中のこのセッション」に
+        // 限った巻き添えのみ。
         $guardName = $user instanceof Guardian ? 'guardian' : 'staff';
         $sessionColumn = $guardName === 'guardian' ? 'guardian_id' : 'staff_id';
 
@@ -114,7 +123,8 @@ class ProfileController extends Controller
         // 無関係な方のガードまで巻き添えでログアウトしてしまうのは
         // 意図しない副作用になる（例: スタッフとして再ログイン後に
         // スタッフ自身を退会させたら、無関係な保護者のログインまで
-        // 消えてしまう）。
+        // 消えてしまう）。上のとおり、これは「今アクセス中のこの
+        // セッション」に限った話であり、他デバイスの巻き添えは別の話。
         Auth::guard($guardName)->logout();
 
         $user->delete();
