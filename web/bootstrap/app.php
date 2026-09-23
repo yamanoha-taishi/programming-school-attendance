@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\Authenticate;
+use App\Http\Middleware\EnsureStaffHasRole;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -53,6 +54,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // 詳細はApp\Http\Middleware\Authenticateのコメント参照。
         $middleware->alias([
             'auth' => Authenticate::class,
+            'role' => EnsureStaffHasRole::class,
         ]);
 
         $middleware->web(append: [
