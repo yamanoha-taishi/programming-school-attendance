@@ -9,12 +9,12 @@ use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
-    public function index()
+    public function index(): void
     {
         //
     }
 
-    public function update(Request $request, Lesson $lesson, Student $student)
+    public function update(Request $request, Lesson $lesson, Student $student): void
     {
         //
     }

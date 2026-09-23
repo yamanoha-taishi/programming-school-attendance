@@ -8,37 +8,37 @@ use Illuminate\Http\Request;
 
 class GuardianController extends Controller
 {
-    public function index()
+    public function index(): void
     {
         //
     }
 
-    public function create()
+    public function create(): void
     {
         //
     }
 
-    public function store(Request $request)
+    public function store(Request $request): void
     {
         //
     }
 
-    public function edit(Guardian $guardian)
+    public function edit(Guardian $guardian): void
     {
         //
     }
 
-    public function update(Request $request, Guardian $guardian)
+    public function update(Request $request, Guardian $guardian): void
     {
         //
     }
 
-    public function destroy(Guardian $guardian)
+    public function destroy(Guardian $guardian): void
     {
         //
     }
 
-    public function reissuePassword(Guardian $guardian)
+    public function reissuePassword(Guardian $guardian): void
     {
         //
     }
