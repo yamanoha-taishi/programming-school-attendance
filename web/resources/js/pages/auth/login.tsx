@@ -1,5 +1,4 @@
 import { Form, Head } from '@inertiajs/react';
-import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
@@ -16,7 +15,7 @@ type Props = {
 export default function Login({ status }: Props) {
     return (
         <>
-            <Head title="Log in" />
+            <Head title="ログイン" />
 
             <Form
                 {...AuthenticatedSessionController.store.form()}
@@ -26,6 +25,11 @@ export default function Login({ status }: Props) {
                 {({ processing, errors }) => (
                     <>
                         <div className="grid gap-6">
+                            {errors.member_code && (
+                                <div className="rounded-lg border border-status-absent bg-status-absent-bg px-3 py-2.5 text-sm text-status-absent">
+                                    {errors.member_code}
+                                </div>
+                            )}
                             <div className="grid gap-2">
                                 <Label htmlFor="member_code">会員番号</Label>
                                 <Input
@@ -36,43 +40,39 @@ export default function Login({ status }: Props) {
                                     autoFocus
                                     tabIndex={1}
                                     autoComplete="username"
-                                    placeholder="0001"
+                                    placeholder="例：0001"
                                 />
-                                <InputError message={errors.member_code} />
                             </div>
 
                             <div className="grid gap-2">
-                                <div className="flex items-center">
-                                    <Label htmlFor="password">Password</Label>
-                                    <TextLink
-                                        href={request()}
-                                        className="ml-auto text-sm"
-                                        tabIndex={3}
-                                    >
-                                        パスワードをお忘れの方はこちら
-                                    </TextLink>
-                                </div>
+                                <Label htmlFor="password">パスワード</Label>
                                 <PasswordInput
                                     id="password"
                                     name="password"
                                     required
                                     tabIndex={2}
                                     autoComplete="current-password"
-                                    placeholder="Password"
                                 />
-                                <InputError message={errors.password} />
                             </div>
 
                             <Button
                                 type="submit"
                                 className="mt-4 w-full"
-                                tabIndex={4}
+                                tabIndex={3}
                                 disabled={processing}
                                 data-test="login-button"
                             >
                                 {processing && <Spinner />}
-                                Log in
+                                ログイン
                             </Button>
+
+                            <TextLink
+                                href={request()}
+                                className="mx-auto text-sm text-primary"
+                                tabIndex={4}
+                            >
+                                パスワードをお忘れの方はこちら
+                            </TextLink>
                         </div>
                     </>
                 )}
@@ -86,8 +86,3 @@ export default function Login({ status }: Props) {
         </>
     );
 }
-
-Login.layout = {
-    title: 'Log in to your account',
-    description: '会員番号とパスワードを入力してログインしてください',
-};
