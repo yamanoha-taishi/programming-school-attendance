@@ -20,14 +20,20 @@ export default function Login({ status }: Props) {
             <Form
                 {...AuthenticatedSessionController.store.form()}
                 resetOnSuccess={['password']}
+                noValidate
                 className="flex flex-col gap-6"
             >
                 {({ processing, errors }) => (
                     <>
                         <div className="grid gap-6">
-                            {errors.member_code && (
+                            {(errors.member_code || errors.password) && (
                                 <div className="rounded-lg border border-status-absent bg-status-absent-bg px-3 py-2.5 text-sm text-status-absent">
-                                    {errors.member_code}
+                                    {errors.member_code && (
+                                        <p>{errors.member_code}</p>
+                                    )}
+                                    {errors.password && (
+                                        <p>{errors.password}</p>
+                                    )}
                                 </div>
                             )}
                             <div className="grid gap-2">
