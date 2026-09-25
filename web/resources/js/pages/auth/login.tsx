@@ -34,7 +34,7 @@ export default function Login({ status }: Props) {
                                 {status && (
                                     <div
                                         role="status"
-                                        className="rounded-lg border border-status-attend bg-status-attend-bg px-3 py-2.5 text-sm text-status-attend"
+                                        className="rounded-lg border border-status-attend bg-status-attend-bg px-3 py-2.5 text-sm text-status-attend-text"
                                     >
                                         {status}
                                     </div>
@@ -44,7 +44,7 @@ export default function Login({ status }: Props) {
                                     <div
                                         id="login-error"
                                         role="alert"
-                                        className="rounded-lg border border-status-absent bg-status-absent-bg px-3 py-2.5 text-sm text-status-absent"
+                                        className="rounded-lg border border-status-absent bg-status-absent-bg px-3 py-2.5 text-sm text-status-absent-text"
                                     >
                                         {errors.member_code && (
                                             <p>{errors.member_code}</p>

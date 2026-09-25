@@ -38,7 +38,7 @@ export default function ResetPassword({ token, email, passwordRules }: Props) {
                                 <div
                                     id="reset-password-error"
                                     role="alert"
-                                    className="rounded-lg border border-status-absent bg-status-absent-bg px-3 py-2.5 text-sm text-status-absent"
+                                    className="rounded-lg border border-status-absent bg-status-absent-bg px-3 py-2.5 text-sm text-status-absent-text"
                                 >
                                     {errors.email && <p>{errors.email}</p>}
                                     {errors.password && (

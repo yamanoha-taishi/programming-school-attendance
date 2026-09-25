@@ -18,7 +18,7 @@ export default function ForgotPassword({ status }: { status?: string }) {
                         {status && (
                             <div
                                 role="status"
-                                className="rounded-lg border border-status-attend bg-status-attend-bg px-3 py-2.5 text-sm text-status-attend"
+                                className="rounded-lg border border-status-attend bg-status-attend-bg px-3 py-2.5 text-sm text-status-attend-text"
                             >
                                 {status}
                             </div>
@@ -28,7 +28,7 @@ export default function ForgotPassword({ status }: { status?: string }) {
                             <div
                                 id="forgot-password-error"
                                 role="alert"
-                                className="rounded-lg border border-status-absent bg-status-absent-bg px-3 py-2.5 text-sm text-status-absent"
+                                className="rounded-lg border border-status-absent bg-status-absent-bg px-3 py-2.5 text-sm text-status-absent-text"
                             >
                                 <p>{errors.email}</p>
                             </div>
