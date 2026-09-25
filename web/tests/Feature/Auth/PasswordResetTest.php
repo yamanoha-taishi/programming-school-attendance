@@ -10,6 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class PasswordResetTest extends TestCase
@@ -440,6 +441,62 @@ class PasswordResetTest extends TestCase
         ]);
     }
 
+    public function test_reset_password_requires_both_password_fields_when_both_are_empty()
+    {
+        $response = $this->postResetPasswordForm([
+            'password' => '',
+            'password_confirmation' => '',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'password' => 'パスワードを入力してください。',
+            'password_confirmation' => '確認用パスワードを入力してください。',
+        ]);
+    }
+
+    public function test_reset_password_requires_password_when_only_confirmation_is_filled()
+    {
+        // 1つ目が空のときは「パスワードを入力してください」だけを出し、
+        // 確認用の欄に「一致しません」を重ねて出さないことを確認する。
+        $response = $this->postResetPasswordForm([
+            'password' => '',
+            'password_confirmation' => 'new-password',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'password' => 'パスワードを入力してください。',
+        ]);
+        $response->assertSessionDoesntHaveErrors('password_confirmation');
+    }
+
+    public function test_reset_password_requires_confirmation_when_only_password_is_filled()
+    {
+        // 確認用の欄が空のときは「一致しません」ではなく
+        // 「確認用パスワードを入力してください」を出すことを確認する。
+        $response = $this->postResetPasswordForm([
+            'password' => 'new-password',
+            'password_confirmation' => '',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'password_confirmation' => '確認用パスワードを入力してください。',
+        ]);
+        $response->assertSessionDoesntHaveErrors('password');
+    }
+
+    public function test_reset_password_rejects_mismatched_confirmation()
+    {
+        $response = $this->postResetPasswordForm([
+            'password' => 'new-password',
+            'password_confirmation' => 'different-password',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'password_confirmation' => 'パスワードが一致しません。',
+        ]);
+        $response->assertSessionDoesntHaveErrors('password');
+    }
+
     public function test_reset_password_requests_are_rate_limited()
     {
         // 上限（1分5回）超過時は429ではなく、試行回数超過のエラーメッセージ付きで
@@ -474,5 +531,24 @@ class PasswordResetTest extends TestCase
             'password' => __('auth.reset_throttle', ['seconds' => 60]),
         ]);
         $response->assertSessionDoesntHaveErrors('email');
+    }
+
+    /**
+     * 再設定画面のフォームを送信する（パスワード欄の入力チェックの確認用）。
+     * エラーメッセージの文言まで確認するため、ロケールを日本語に固定する。
+     * 入力チェックはトークンの照合より前に行われるため、トークンは
+     * ダミーの値で送る。
+     *
+     * @param  array<string, string>  $passwords
+     */
+    private function postResetPasswordForm(array $passwords): TestResponse
+    {
+        $this->app->setLocale('ja');
+
+        return $this->post(route('password.update'), [
+            'token' => 'dummy-token',
+            'email' => 'someone@example.com',
+            ...$passwords,
+        ]);
     }
 }

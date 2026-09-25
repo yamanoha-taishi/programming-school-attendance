@@ -19,5 +19,12 @@ return [
         'member_code' => '会員番号',
         'email' => 'メールアドレス',
         'password' => 'パスワード',
+        'password_confirmation' => '確認用パスワード',
+    ],
+
+    'custom' => [
+        'password_confirmation' => [
+            'same' => 'パスワードが一致しません。',
+        ],
     ],
 ];

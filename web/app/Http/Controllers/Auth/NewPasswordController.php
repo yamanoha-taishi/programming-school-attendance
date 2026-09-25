@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -31,7 +32,12 @@ class NewPasswordController extends Controller
         $validated = $request->validate([
             'token' => 'required|string',
             'email' => 'required|email',
-            'password' => ['required', 'confirmed', Password::defaults()],
+            'password' => ['required', Password::defaults()],
+            'password_confirmation' => [
+                'bail',
+                'required',
+                Rule::when($request->filled('password'), 'same:password'),
+            ],
         ]);
 
         $guardian = Guardian::where('email', $validated['email'])->first();
