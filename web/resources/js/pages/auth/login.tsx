@@ -31,6 +31,15 @@ export default function Login({ status }: Props) {
                     return (
                         <>
                             <div className="grid gap-6">
+                                {status && (
+                                    <div
+                                        role="status"
+                                        className="rounded-lg border border-status-attend bg-status-attend-bg px-3 py-2.5 text-sm text-status-attend"
+                                    >
+                                        {status}
+                                    </div>
+                                )}
+
                                 {hasError && (
                                     <div
                                         id="login-error"
@@ -103,12 +112,6 @@ export default function Login({ status }: Props) {
                     );
                 }}
             </Form>
-
-            {status && (
-                <div className="mb-4 text-center text-sm font-medium text-green-600">
-                    {status}
-                </div>
-            )}
         </>
     );
 }
