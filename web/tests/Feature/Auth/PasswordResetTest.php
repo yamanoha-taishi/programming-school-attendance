@@ -116,8 +116,10 @@ class PasswordResetTest extends TestCase
     public function test_forgot_password_requests_are_rate_limited()
     {
         // 上限超過時は429ではなく、試行回数超過のエラーメッセージ付きで申請画面に
-        // 戻す。メッセージの秒数を60に固定するため時刻を止める。
+        // 戻す。メッセージの秒数を60に固定するため時刻を止め、文言まで確認する
+        // ためロケールを日本語に固定する。
         $this->freezeTime();
+        $this->app->setLocale('ja');
 
         Mail::fake();
 
@@ -130,7 +132,7 @@ class PasswordResetTest extends TestCase
 
         $response->assertRedirect(route('password.request'));
         $response->assertSessionHasErrors([
-            'email' => __('auth.reset_throttle', ['seconds' => 60]),
+            'email' => '短時間に続けて操作されたため、一時的に受け付けを停止しています。60秒後に再度お試しください。',
         ]);
     }
 
@@ -502,8 +504,9 @@ class PasswordResetTest extends TestCase
         // 上限（1分5回）超過時は429ではなく、試行回数超過のエラーメッセージ付きで
         // 再設定画面に戻す。errors.emailは「リンクが無効・期限切れ」の表示に使って
         // いるため、エラーはpasswordに付く。メッセージの秒数を60に固定するため
-        // 時刻を止める。
+        // 時刻を止め、文言まで確認するためロケールを日本語に固定する。
         $this->freezeTime();
+        $this->app->setLocale('ja');
 
         $resetUrl = route('password.reset', [
             'token' => 'invalid-token',
@@ -528,7 +531,7 @@ class PasswordResetTest extends TestCase
 
         $response->assertRedirect($resetUrl);
         $response->assertSessionHasErrors([
-            'password' => __('auth.reset_throttle', ['seconds' => 60]),
+            'password' => '短時間に続けて操作されたため、一時的に受け付けを停止しています。60秒後に再度お試しください。',
         ]);
         $response->assertSessionDoesntHaveErrors('email');
     }
