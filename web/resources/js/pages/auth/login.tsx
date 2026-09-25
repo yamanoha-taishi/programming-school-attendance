@@ -47,6 +47,8 @@ export default function Login({ status }: Props) {
                                     tabIndex={1}
                                     autoComplete="username"
                                     placeholder="例：0001"
+                                    inputMode="numeric"
+                                    maxLength={4}
                                 />
                             </div>
 
@@ -63,7 +65,7 @@ export default function Login({ status }: Props) {
 
                             <Button
                                 type="submit"
-                                className="mt-4 w-full"
+                                className="w-full"
                                 tabIndex={3}
                                 disabled={processing}
                                 data-test="login-button"
