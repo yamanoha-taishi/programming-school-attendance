@@ -79,11 +79,24 @@ class RateLimitServiceProvider extends ServiceProvider
             $rawEmail = $request->input('email');
             $throttleKey = Str::transliterate(Str::lower(is_string($rawEmail) ? $rawEmail : '')).'|'.$request->ip();
 
-            return Limit::perMinute(5)->by($throttleKey);
+            // 上限を超えたときは429のエラーページではなく、エラーメッセージ付きで
+            // 申請画面に戻す（画面のエラーバナーはerrors.emailを表示する）。
+            return Limit::perMinute(5)->by($throttleKey)->response(
+                fn (Request $request, array $headers) => back()->withErrors([
+                    'email' => __('auth.reset_throttle', ['seconds' => $headers['Retry-After']]),
+                ])
+            );
         });
 
         RateLimiter::for('reset-password', function (Request $request) {
-            return Limit::perMinute(10)->by($request->ip());
+            // 上限を超えたときは429のエラーページではなく、エラーメッセージ付きで
+            // 再設定画面に戻す。errors.emailは「リンクが無効・期限切れ」の表示
+            // （再設定メールをもう一度送るリンク）に使っているため、passwordに付ける。
+            return Limit::perMinute(5)->by($request->ip())->response(
+                fn (Request $request, array $headers) => back()->withErrors([
+                    'password' => __('auth.reset_throttle', ['seconds' => $headers['Retry-After']]),
+                ])
+            );
         });
     }
 }

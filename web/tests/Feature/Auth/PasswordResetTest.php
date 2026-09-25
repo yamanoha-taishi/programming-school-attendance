@@ -10,6 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class PasswordResetTest extends TestCase
@@ -114,15 +115,25 @@ class PasswordResetTest extends TestCase
 
     public function test_forgot_password_requests_are_rate_limited()
     {
+        // 上限超過時は429ではなく、試行回数超過のエラーメッセージ付きで申請画面に
+        // 戻す。メッセージの秒数を60に固定するため時刻を止め、文言まで確認する
+        // ためロケールを日本語に固定する。
+        $this->freezeTime();
+        $this->app->setLocale('ja');
+
         Mail::fake();
 
         for ($i = 0; $i < 5; $i++) {
             $this->post(route('password.email'), ['email' => 'someone@example.com']);
         }
 
-        $response = $this->post(route('password.email'), ['email' => 'someone@example.com']);
+        $response = $this->from(route('password.request'))
+            ->post(route('password.email'), ['email' => 'someone@example.com']);
 
-        $response->assertTooManyRequests();
+        $response->assertRedirect(route('password.request'));
+        $response->assertSessionHasErrors([
+            'email' => '短時間に続けて操作されたため、一時的に受け付けを停止しています。60秒後に再度お試しください。',
+        ]);
     }
 
     public function test_password_can_be_reset_with_valid_token()
@@ -432,9 +443,77 @@ class PasswordResetTest extends TestCase
         ]);
     }
 
+    public function test_reset_password_requires_both_password_fields_when_both_are_empty()
+    {
+        $response = $this->postResetPasswordForm([
+            'password' => '',
+            'password_confirmation' => '',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'password' => 'パスワードを入力してください。',
+            'password_confirmation' => '確認用パスワードを入力してください。',
+        ]);
+    }
+
+    public function test_reset_password_requires_password_when_only_confirmation_is_filled()
+    {
+        // 1つ目が空のときは「パスワードを入力してください」だけを出し、
+        // 確認用の欄に「一致しません」を重ねて出さないことを確認する。
+        $response = $this->postResetPasswordForm([
+            'password' => '',
+            'password_confirmation' => 'new-password',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'password' => 'パスワードを入力してください。',
+        ]);
+        $response->assertSessionDoesntHaveErrors('password_confirmation');
+    }
+
+    public function test_reset_password_requires_confirmation_when_only_password_is_filled()
+    {
+        // 確認用の欄が空のときは「一致しません」ではなく
+        // 「確認用パスワードを入力してください」を出すことを確認する。
+        $response = $this->postResetPasswordForm([
+            'password' => 'new-password',
+            'password_confirmation' => '',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'password_confirmation' => '確認用パスワードを入力してください。',
+        ]);
+        $response->assertSessionDoesntHaveErrors('password');
+    }
+
+    public function test_reset_password_rejects_mismatched_confirmation()
+    {
+        $response = $this->postResetPasswordForm([
+            'password' => 'new-password',
+            'password_confirmation' => 'different-password',
+        ]);
+
+        $response->assertSessionHasErrors([
+            'password_confirmation' => 'パスワードが一致しません。',
+        ]);
+        $response->assertSessionDoesntHaveErrors('password');
+    }
+
     public function test_reset_password_requests_are_rate_limited()
     {
-        for ($i = 0; $i < 10; $i++) {
+        // 上限（1分5回）超過時は429ではなく、試行回数超過のエラーメッセージ付きで
+        // 再設定画面に戻す。errors.emailは「リンクが無効・期限切れ」の表示に使って
+        // いるため、エラーはpasswordに付く。メッセージの秒数を60に固定するため
+        // 時刻を止め、文言まで確認するためロケールを日本語に固定する。
+        $this->freezeTime();
+        $this->app->setLocale('ja');
+
+        $resetUrl = route('password.reset', [
+            'token' => 'invalid-token',
+            'email' => 'someone@example.com',
+        ]);
+
+        for ($i = 0; $i < 5; $i++) {
             $this->post(route('password.update'), [
                 'token' => 'invalid-token',
                 'email' => 'someone@example.com',
@@ -443,13 +522,36 @@ class PasswordResetTest extends TestCase
             ]);
         }
 
-        $response = $this->post(route('password.update'), [
+        $response = $this->from($resetUrl)->post(route('password.update'), [
             'token' => 'invalid-token',
             'email' => 'someone@example.com',
             'password' => 'new-password',
             'password_confirmation' => 'new-password',
         ]);
 
-        $response->assertTooManyRequests();
+        $response->assertRedirect($resetUrl);
+        $response->assertSessionHasErrors([
+            'password' => '短時間に続けて操作されたため、一時的に受け付けを停止しています。60秒後に再度お試しください。',
+        ]);
+        $response->assertSessionDoesntHaveErrors('email');
+    }
+
+    /**
+     * 再設定画面のフォームを送信する（パスワード欄の入力チェックの確認用）。
+     * エラーメッセージの文言まで確認するため、ロケールを日本語に固定する。
+     * 入力チェックはトークンの照合より前に行われるため、トークンは
+     * ダミーの値で送る。
+     *
+     * @param  array<string, string>  $passwords
+     */
+    private function postResetPasswordForm(array $passwords): TestResponse
+    {
+        $this->app->setLocale('ja');
+
+        return $this->post(route('password.update'), [
+            'token' => 'dummy-token',
+            'email' => 'someone@example.com',
+            ...$passwords,
+        ]);
     }
 }

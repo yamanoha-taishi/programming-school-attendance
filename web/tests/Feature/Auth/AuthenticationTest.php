@@ -143,6 +143,7 @@ class AuthenticationTest extends TestCase
     public function test_users_are_rate_limited()
     {
         $this->freezeTime();
+        $this->app->setLocale('ja');
 
         $guardian = Guardian::factory()->create();
 
@@ -209,6 +210,7 @@ class AuthenticationTest extends TestCase
         // （IPバケットが巻き添えでクリアされていれば、この21回目は
         // 通ってしまうはず）。
         $this->freezeTime();
+        $this->app->setLocale('ja');
 
         $guardians = Guardian::factory()->count(19)->create();
 
@@ -248,6 +250,7 @@ class AuthenticationTest extends TestCase
         // バケットは5回に届かない）が、IP単位の上限（20回/分）には到達し、
         // 遮断されることを確認する。
         $this->freezeTime();
+        $this->app->setLocale('ja');
 
         $guardians = Guardian::factory()->count(20)->create();
 
@@ -273,13 +276,14 @@ class AuthenticationTest extends TestCase
      * エラーメッセージ付きでログイン画面に戻されることを確認する。
      * member_codeにエラーがあることだけでなく文言まで比較するのは、
      * 通常のログイン失敗（auth.failed）と区別するため。秒数を60に
-     * 固定できるよう、呼び出し側のテストではfreezeTime()しておく。
+     * 固定できるよう、呼び出し側のテストではfreezeTime()しておく。文言は日本語で
+     * 比較するため、呼び出し側のテストでロケールを日本語に固定しておく。
      */
     private function assertLoginThrottled(TestResponse $response): void
     {
         $response->assertRedirect(route('login'));
         $response->assertSessionHasErrors([
-            'member_code' => __('auth.throttle', ['seconds' => 60]),
+            'member_code' => 'ログインの試行回数が上限に達しました。60秒後に再度お試しください。',
         ]);
     }
 }

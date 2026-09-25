@@ -70,10 +70,12 @@
 
     --color-status-attend: #2f9e4f;
     --color-status-attend-bg: #e8f7ec;
+    --color-status-attend-text: #1f6e37;
     --color-status-late: #b08000;
     --color-status-late-bg: #fbf3dc;
     --color-status-absent: #d6483f;
     --color-status-absent-bg: #fbeae8;
+    --color-status-absent-text: #b3261e;
     --color-status-transfer: #1e8a8a;
     --color-status-transfer-bg: #e4f5f5;
     --color-status-makeup: #7a4fc9;

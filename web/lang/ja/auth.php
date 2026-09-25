@@ -5,6 +5,7 @@ return [
     'throttle' => 'ログインの試行回数が上限に達しました。:seconds秒後に再度お試しください。',
     'reset_link_sent' => 'パスワード再設定のメールを送信しました。',
     'reset_success' => 'パスワードを再設定しました。',
-    'reset_token_invalid' => 'トークンが無効です。',
-    'reset_token_expired' => 'トークンの有効期限が切れています。',
+    'reset_token_invalid' => 'このリンクは無効です。もう一度パスワード再設定の手続きを行ってください。',
+    'reset_token_expired' => 'リンクの有効期限が切れています。もう一度パスワード再設定の手続きを行ってください。',
+    'reset_throttle' => '短時間に続けて操作されたため、一時的に受け付けを停止しています。:seconds秒後に再度お試しください。',
 ];
