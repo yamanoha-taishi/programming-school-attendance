@@ -114,15 +114,23 @@ class PasswordResetTest extends TestCase
 
     public function test_forgot_password_requests_are_rate_limited()
     {
+        // 上限超過時は429ではなく、試行回数超過のエラーメッセージ付きで申請画面に
+        // 戻す。メッセージの秒数を60に固定するため時刻を止める。
+        $this->freezeTime();
+
         Mail::fake();
 
         for ($i = 0; $i < 5; $i++) {
             $this->post(route('password.email'), ['email' => 'someone@example.com']);
         }
 
-        $response = $this->post(route('password.email'), ['email' => 'someone@example.com']);
+        $response = $this->from(route('password.request'))
+            ->post(route('password.email'), ['email' => 'someone@example.com']);
 
-        $response->assertTooManyRequests();
+        $response->assertRedirect(route('password.request'));
+        $response->assertSessionHasErrors([
+            'email' => __('auth.reset_throttle', ['seconds' => 60]),
+        ]);
     }
 
     public function test_password_can_be_reset_with_valid_token()
@@ -434,7 +442,18 @@ class PasswordResetTest extends TestCase
 
     public function test_reset_password_requests_are_rate_limited()
     {
-        for ($i = 0; $i < 10; $i++) {
+        // 上限（1分5回）超過時は429ではなく、試行回数超過のエラーメッセージ付きで
+        // 再設定画面に戻す。errors.emailは「リンクが無効・期限切れ」の表示に使って
+        // いるため、エラーはpasswordに付く。メッセージの秒数を60に固定するため
+        // 時刻を止める。
+        $this->freezeTime();
+
+        $resetUrl = route('password.reset', [
+            'token' => 'invalid-token',
+            'email' => 'someone@example.com',
+        ]);
+
+        for ($i = 0; $i < 5; $i++) {
             $this->post(route('password.update'), [
                 'token' => 'invalid-token',
                 'email' => 'someone@example.com',
@@ -443,13 +462,17 @@ class PasswordResetTest extends TestCase
             ]);
         }
 
-        $response = $this->post(route('password.update'), [
+        $response = $this->from($resetUrl)->post(route('password.update'), [
             'token' => 'invalid-token',
             'email' => 'someone@example.com',
             'password' => 'new-password',
             'password_confirmation' => 'new-password',
         ]);
 
-        $response->assertTooManyRequests();
+        $response->assertRedirect($resetUrl);
+        $response->assertSessionHasErrors([
+            'password' => __('auth.reset_throttle', ['seconds' => 60]),
+        ]);
+        $response->assertSessionDoesntHaveErrors('email');
     }
 }
