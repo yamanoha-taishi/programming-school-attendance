@@ -2,6 +2,7 @@
 
 return [
     'failed' => '会員番号またはパスワードが正しくありません。',
+    'throttle' => 'ログインの試行回数が上限に達しました。:seconds秒後に再度お試しください。',
     'reset_link_sent' => 'パスワード再設定のメールを送信しました。',
     'reset_success' => 'パスワードを再設定しました。',
     'reset_token_invalid' => 'トークンが無効です。',
