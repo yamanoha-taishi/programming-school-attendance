@@ -61,6 +61,12 @@ export default function ForgotPassword({ status }: { status?: string }) {
                             再設定メールを送信
                         </Button>
 
+                        <p className="text-center text-sm text-muted-foreground">
+                            メールアドレスを登録していない方は、
+                            <br />
+                            運営にお問い合わせください。
+                        </p>
+
                         <TextLink
                             href={login()}
                             className="mx-auto text-sm text-primary"
