@@ -55,6 +55,13 @@ class RateLimitServiceProvider extends ServiceProvider
             // 併用し、同一IPからの総試行回数自体に上限を設ける。
             $keys = self::loginThrottleKeys($request);
 
+            // 上限を超えたときは429のエラーページではなく、ほかのログイン
+            // エラーと同じくエラーメッセージ付きでログイン画面に戻す
+            // （Inertiaは通常のHTMLページを受け取るとモーダルで表示してしまうため）。
+            $tooManyAttempts = fn (Request $request, array $headers) => back()->withErrors([
+                'member_code' => __('auth.throttle', ['seconds' => $headers['Retry-After']]),
+            ]);
+
             // ThrottleRequestsのaddHeaders()は「既存のX-RateLimit-Remaining
             // より小さい場合のみ上書きする」実装のため、実際にはどちらを
             // 先に置いても基本的に厳しい方（残り回数が少ない方）の値が
@@ -63,8 +70,8 @@ class RateLimitServiceProvider extends ServiceProvider
             // 配列の最後に置き、その同値ケースでも厳しい方が表示される
             // ようにしている。
             return [
-                Limit::perMinute(20)->by($keys['ip']),
-                Limit::perMinute(5)->by($keys['memberCode']),
+                Limit::perMinute(20)->by($keys['ip'])->response($tooManyAttempts),
+                Limit::perMinute(5)->by($keys['memberCode'])->response($tooManyAttempts),
             ];
         });
 

@@ -5,6 +5,7 @@ namespace Tests\Feature\Auth;
 use App\Models\Guardian;
 use App\Models\Staff;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -141,6 +142,8 @@ class AuthenticationTest extends TestCase
 
     public function test_users_are_rate_limited()
     {
+        $this->freezeTime();
+
         $guardian = Guardian::factory()->create();
 
         for ($i = 0; $i < 5; $i++) {
@@ -150,12 +153,12 @@ class AuthenticationTest extends TestCase
             ]);
         }
 
-        $response = $this->post(route('login'), [
+        $response = $this->from(route('login'))->post(route('login'), [
             'member_code' => $guardian->member_code,
             'password' => 'wrong-password',
         ]);
 
-        $response->assertTooManyRequests();
+        $this->assertLoginThrottled($response);
     }
 
     public function test_successful_login_clears_the_rate_limiter_for_that_member_code()
@@ -205,6 +208,8 @@ class AuthenticationTest extends TestCase
         // 依然としてIP単位の上限でブロックされることを確認する
         // （IPバケットが巻き添えでクリアされていれば、この21回目は
         // 通ってしまうはず）。
+        $this->freezeTime();
+
         $guardians = Guardian::factory()->count(19)->create();
 
         foreach ($guardians as $guardian) {
@@ -227,12 +232,12 @@ class AuthenticationTest extends TestCase
 
         $anotherGuardian = Guardian::factory()->create();
 
-        $response = $this->post(route('login'), [
+        $response = $this->from(route('login'))->post(route('login'), [
             'member_code' => $anotherGuardian->member_code,
             'password' => 'wrong-password',
         ]);
 
-        $response->assertTooManyRequests();
+        $this->assertLoginThrottled($response);
     }
 
     public function test_users_are_rate_limited_across_different_member_codes_from_the_same_ip()
@@ -242,6 +247,8 @@ class AuthenticationTest extends TestCase
         // 防げない。ここでは1つのmember_codeにつき1回しか試さない（個々の
         // バケットは5回に届かない）が、IP単位の上限（20回/分）には到達し、
         // 遮断されることを確認する。
+        $this->freezeTime();
+
         $guardians = Guardian::factory()->count(20)->create();
 
         foreach ($guardians as $guardian) {
@@ -253,11 +260,26 @@ class AuthenticationTest extends TestCase
 
         $anotherGuardian = Guardian::factory()->create();
 
-        $response = $this->post(route('login'), [
+        $response = $this->from(route('login'))->post(route('login'), [
             'member_code' => $anotherGuardian->member_code,
             'password' => 'wrong-password',
         ]);
 
-        $response->assertTooManyRequests();
+        $this->assertLoginThrottled($response);
+    }
+
+    /**
+     * レート制限に達したときに、429のエラーページではなく試行回数超過の
+     * エラーメッセージ付きでログイン画面に戻されることを確認する。
+     * member_codeにエラーがあることだけでなく文言まで比較するのは、
+     * 通常のログイン失敗（auth.failed）と区別するため。秒数を60に
+     * 固定できるよう、呼び出し側のテストではfreezeTime()しておく。
+     */
+    private function assertLoginThrottled(TestResponse $response): void
+    {
+        $response->assertRedirect(route('login'));
+        $response->assertSessionHasErrors([
+            'member_code' => __('auth.throttle', ['seconds' => 60]),
+        ]);
     }
 }
