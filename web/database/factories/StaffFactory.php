@@ -3,7 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Staff;
-use Database\Seeders\Support\JapaneseNames;
+use Database\Factories\Support\JapaneseNames;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 

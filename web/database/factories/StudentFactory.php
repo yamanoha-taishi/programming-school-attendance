@@ -6,7 +6,7 @@ use App\Models\Guardian;
 use App\Models\SchoolClass;
 use App\Models\Section;
 use App\Models\Student;
-use Database\Seeders\Support\JapaneseNames;
+use Database\Factories\Support\JapaneseNames;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
