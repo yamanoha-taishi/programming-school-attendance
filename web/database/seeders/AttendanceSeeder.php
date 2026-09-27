@@ -10,6 +10,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use LogicException;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 
@@ -368,6 +369,7 @@ class AttendanceSeeder extends Seeder
      * 配列からランダムに1つ選んで返す。
      * キーが0始まりの連番でない配列（Collection::where()の結果など）にも対応するため、
      * 値ではなくキーを抽選してから取り出している。
+     * 空の配列からは選べないため、空の場合は例外にする（呼び出し側の前提が崩れていることを早めに気づけるように）。
      *
      * @template T
      *
@@ -376,6 +378,10 @@ class AttendanceSeeder extends Seeder
      */
     private function pick(array $items): mixed
     {
+        if ($items === []) {
+            throw new LogicException('空の配列からは選べません。');
+        }
+
         $key = $this->random->pickArrayKeys($items, 1)[0];
 
         return $items[$key];
