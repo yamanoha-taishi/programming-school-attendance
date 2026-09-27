@@ -14,8 +14,9 @@ class LessonSeeder extends Seeder
     // lesson_plans.noは1〜42なので、各授業実施単位（section）につき42件分の日付を用意する
     private const LESSON_COUNT = 42;
 
-    // 学年度の起点（この日以降で、各曜日ごとに最初の該当曜日を探す）
-    private const YEAR_START = '2026-04-01';
+    // 学年度の起点。月曜日を週の始まりとし、4月最初の月曜日（2026-04-06）から始まる週（4/6〜4/11）を第1週とする。
+    // この日以降で、各曜日ごとに最初の該当曜日を探す
+    private const YEAR_START = '2026-04-06';
 
     private const WEEKDAY_ISO = [
         '月' => 1,
