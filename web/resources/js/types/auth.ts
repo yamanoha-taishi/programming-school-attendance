@@ -8,4 +8,5 @@ export type User = {
 
 export type Auth = {
     user: User | null;
+    role: 'full_access' | 'attendance_only' | null;
 };
