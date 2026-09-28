@@ -38,6 +38,10 @@ class AttendanceSeeder extends Seeder
     // 直近の保護者からの事前連絡（欠席・遅刻）がスタッフ未対応（staff_id = null）のままになる確率
     private const UNPROCESSED_RATE = 50;
 
+    // 振替・30分前補講の補講先の授業日が過去の場合に、補講先に来なかった（makeup_status = 欠席）ことにする確率。
+    // 残りは補講先で出席済み（makeup_status = 出席）＝「振替済み」「30分前補講済み」として表示される
+    private const MAKEUP_NO_SHOW_RATE = 10;
+
     // ---- 今日以降の授業回（保護者からの事前連絡のみ） ----
 
     // 今日から何日先までの授業回に、事前連絡を作るか
@@ -115,6 +119,9 @@ class AttendanceSeeder extends Seeder
     /** @var Collection<int|string, Collection<int, Lesson>> lesson_plan_id => lessons（日付順） */
     private Collection $lessonsByPlan;
 
+    /** @var Collection<int|string, Lesson> lesson_id => lesson（補講先の授業日を調べるため） */
+    private Collection $lessonsById;
+
     /**
      * Run the database seeds.
      */
@@ -149,6 +156,7 @@ class AttendanceSeeder extends Seeder
             fn (Lesson $lesson) => $this->classSectionKey($lesson->section_id, (int) $lesson->getAttribute('school_class_id'))
         );
         $this->lessonsByPlan = $lessons->groupBy('lesson_plan_id');
+        $this->lessonsById = $lessons->keyBy('id');
 
         Student::orderBy('id')->get()->each(function (Student $student) {
             $key = $this->classSectionKey($student->section_id, $student->school_class_id);
@@ -233,6 +241,7 @@ class AttendanceSeeder extends Seeder
             'status' => $status,
             'is_late' => $isLate,
             'makeup_type' => $makeupType,
+            'makeup_status' => $this->pickMakeupStatus($makeupLessonId),
             'note' => $guardianNotified ? $this->pickNote($isAbsent) : null,
         ];
     }
@@ -263,6 +272,7 @@ class AttendanceSeeder extends Seeder
             'status' => $isAbsent ? '欠席' : null,
             'is_late' => ! $isAbsent,
             'makeup_type' => $makeupType,
+            'makeup_status' => $this->pickMakeupStatus($makeupLessonId),
             'note' => $this->pickNote($isAbsent),
         ];
     }
@@ -289,6 +299,26 @@ class AttendanceSeeder extends Seeder
         }
 
         return [$makeupType, $makeupLessonId];
+    }
+
+    /**
+     * 補講先での出席結果（makeup_status）を決める。
+     * 補講先の授業日が過去なら、MAKEUP_NO_SHOW_RATEの確率で「欠席」（補講先に来なかった）、残りは「出席」。
+     * 補講がない場合や、補講先の授業日が今日以降（まだ補講を受けていない）の場合はnull（未記録）。
+     */
+    private function pickMakeupStatus(?int $makeupLessonId): ?string
+    {
+        if ($makeupLessonId === null) {
+            return null;
+        }
+
+        $makeupLesson = $this->lessonsById->get($makeupLessonId);
+
+        if ($makeupLesson === null || $makeupLesson->date->gte($this->today)) {
+            return null;
+        }
+
+        return $this->chance(self::MAKEUP_NO_SHOW_RATE) ? '欠席' : '出席';
     }
 
     /**
