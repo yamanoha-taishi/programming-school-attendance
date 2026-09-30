@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\AttendanceDisplayStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Lesson;
@@ -22,12 +23,24 @@ class AttendanceController extends Controller
 
         $date = $validated['date'] ?? $this->defaultDate();
 
-        $blocks = Lesson::with(['section', 'lessonPlan.schoolClass'])
+        $lessons = Lesson::with(['section', 'lessonPlan.schoolClass'])
             ->whereDate('date', $date)
+            ->get();
+
+        $students = Student::with('schoolClass')
+            ->whereIn('section_id', $lessons->pluck('section_id')->unique())
+            ->notOnLeave($date)
+            ->orderBy('name_kana')
+            ->get();
+
+        $attendances = Attendance::whereIn('lesson_id', $lessons->pluck('id'))
             ->get()
+            ->keyBy(fn (Attendance $attendance) => "{$attendance->student_id}-{$attendance->lesson_id}");
+
+        $blocks = $lessons
             ->sortBy(fn (Lesson $lesson) => $lesson->section->start_time)
             ->groupBy('section_id')
-            ->map(fn (Collection $lessons) => $this->buildBlock($lessons))
+            ->map(fn (Collection $sectionLessons) => $this->buildBlock($sectionLessons, $students, $attendances))
             ->values();
 
         return Inertia::render('admin/attendances/index', [
@@ -65,19 +78,61 @@ class AttendanceController extends Controller
     /**
      * 1つの授業実施単位の授業回（応用クラスなら最大6件）から、画面の1ブロック分のデータを作る。
      *
-     * @param  Collection<int, Lesson>  $lessons
+     * @param  Collection<int, Lesson>  $sectionLessons  このブロックの授業回
+     * @param  Collection<int, Student>  $students  その日の全ブロックの生徒
+     * @param  Collection<string, Attendance>  $attendances  その日の出席記録（キーは「生徒ID-授業回ID」）
      * @return array<string, mixed>
      */
-    private function buildBlock(Collection $lessons): array
+    private function buildBlock(Collection $sectionLessons, Collection $students, Collection $attendances): array
     {
-        $section = $lessons->firstOrFail()->section;
+        $section = $sectionLessons->firstOrFail()->section;
+
+        $rows = $students
+            ->where('section_id', $section->id)
+            ->sortBy([
+                fn (Student $a, Student $b) => $a->schoolClass->code <=> $b->schoolClass->code,
+                fn (Student $a, Student $b) => $a->gradeOrder() <=> $b->gradeOrder(),
+            ])
+            ->map(fn (Student $student) => $this->buildRow($student, $sectionLessons, $attendances))
+            ->filter()
+            ->values();
 
         return [
             'sectionId' => $section->id,
-            'title' => $this->blockTitle($lessons),
+            'title' => $this->blockTitle($sectionLessons),
             'startTime' => substr($section->start_time, 0, 5),
             'endTime' => substr($section->end_time, 0, 5),
-            'rows' => [],
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * 生徒1人分の行のデータを作る。
+     * このブロックの授業回の中から、その生徒の授業クラスの授業回を探し、その授業回の出席記録から表示ステータスを決める。
+     * その日に自分のクラスの授業回が無い生徒はnullを返す（行に出さない）。
+     *
+     * @param  Collection<int, Lesson>  $sectionLessons
+     * @param  Collection<string, Attendance>  $attendances
+     * @return array<string, mixed>|null
+     */
+    private function buildRow(Student $student, Collection $sectionLessons, Collection $attendances): ?array
+    {
+        $lesson = $sectionLessons->first(
+            fn (Lesson $lesson) => $lesson->lessonPlan->school_class_id === $student->school_class_id
+        );
+
+        if ($lesson === null) {
+            return null;
+        }
+
+        $attendance = $attendances->get("{$student->id}-{$lesson->id}");
+
+        return [
+            'studentId' => $student->id,
+            'name' => $student->name,
+            'schoolClassName' => $lesson->lessonPlan->schoolClass->display_name,
+            'lessonId' => $lesson->id,
+            'displayStatus' => AttendanceDisplayStatus::fromAttendance($attendance)->value,
         ];
     }
 
