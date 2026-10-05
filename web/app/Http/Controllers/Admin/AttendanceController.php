@@ -37,10 +37,17 @@ class AttendanceController extends Controller
             ->get()
             ->keyBy(fn (Attendance $attendance) => "{$attendance->student_id}-{$attendance->lesson_id}");
 
+        // その日の授業回に、振替・30分前補講で「来る側」の欠席記録（クエリ1回）
+        // 生徒が論理削除されている記録は、生徒の情報を表示できないので除く
+        $makeupAttendances = Attendance::with(['lesson', 'student.schoolClass'])
+            ->whereIn('makeup_lesson_id', $lessons->pluck('id'))
+            ->whereHas('student')
+            ->get();
+
         $blocks = $lessons
             ->sortBy(fn (Lesson $lesson) => $lesson->section->start_time)
             ->groupBy('section_id')
-            ->map(fn (Collection $sectionLessons) => $this->buildBlock($sectionLessons, $students, $attendances))
+            ->map(fn (Collection $sectionLessons) => $this->buildBlock($sectionLessons, $students, $attendances, $makeupAttendances))
             ->values();
 
         return Inertia::render('admin/attendances/index', [
@@ -81,28 +88,38 @@ class AttendanceController extends Controller
      * @param  Collection<int, Lesson>  $sectionLessons  このブロックの授業回
      * @param  Collection<int, Student>  $students  その日の全ブロックの生徒
      * @param  Collection<string, Attendance>  $attendances  その日の出席記録（キーは「生徒ID-授業回ID」）
+     * @param  Collection<int, Attendance>  $makeupAttendances  その日の全ブロックに補講で来る欠席記録
      * @return array<string, mixed>
      */
-    private function buildBlock(Collection $sectionLessons, Collection $students, Collection $attendances): array
+    private function buildBlock(Collection $sectionLessons, Collection $students, Collection $attendances, Collection $makeupAttendances): array
     {
         $section = $sectionLessons->firstOrFail()->section;
 
-        $rows = $students
+        // 全ブロックの「来る側」の記録から、補講先がこのブロックの授業回のどれかになっているものだけを取り出す
+        $blockMakeups = $makeupAttendances
+            ->whereIn('makeup_lesson_id', $sectionLessons->pluck('id'))
+            ->sortBy([
+                fn (Attendance $a, Attendance $b) => $a->student->schoolClass->code <=> $b->student->schoolClass->code,
+                fn (Attendance $a, Attendance $b) => $a->student->gradeOrder() <=> $b->student->gradeOrder(),
+            ]);
+
+        $regularRows = $students
             ->where('section_id', $section->id)
             ->sortBy([
                 fn (Student $a, Student $b) => $a->schoolClass->code <=> $b->schoolClass->code,
                 fn (Student $a, Student $b) => $a->gradeOrder() <=> $b->gradeOrder(),
             ])
-            ->map(fn (Student $student) => $this->buildRow($student, $sectionLessons, $attendances))
-            ->filter()
-            ->values();
+            ->map(fn (Student $student) => $this->buildRow($student, $sectionLessons, $attendances, $blockMakeups))
+            ->filter();
+
+        $makeupRows = $blockMakeups->map(fn (Attendance $attendance) => $this->buildMakeupRow($attendance));
 
         return [
             'sectionId' => $section->id,
             'title' => $this->blockTitle($sectionLessons),
             'startTime' => substr($section->start_time, 0, 5),
             'endTime' => substr($section->end_time, 0, 5),
-            'rows' => $rows,
+            'rows' => $regularRows->concat($makeupRows)->values(),
         ];
     }
 
@@ -113,9 +130,10 @@ class AttendanceController extends Controller
      *
      * @param  Collection<int, Lesson>  $sectionLessons
      * @param  Collection<string, Attendance>  $attendances
+     * @param  Collection<int, Attendance>  $blockMakeups  このブロックに補講で来る欠席記録
      * @return array<string, mixed>|null
      */
-    private function buildRow(Student $student, Collection $sectionLessons, Collection $attendances): ?array
+    private function buildRow(Student $student, Collection $sectionLessons, Collection $attendances, Collection $blockMakeups): ?array
     {
         $lesson = $sectionLessons->first(
             fn (Lesson $lesson) => $lesson->lessonPlan->school_class_id === $student->school_class_id
@@ -128,11 +146,15 @@ class AttendanceController extends Controller
         $attendance = $attendances->get("{$student->id}-{$lesson->id}");
 
         return [
+            'kind' => 'regular',
+            'attendanceId' => $attendance?->id,
             'studentId' => $student->id,
             'name' => $student->name,
             'schoolClassName' => $lesson->lessonPlan->schoolClass->display_name,
             'lessonId' => $lesson->id,
             'displayStatus' => AttendanceDisplayStatus::fromAttendance($attendance)->value,
+            // 同じブロックの末尾に、この生徒の補講の行もあるか（自分のクラスの回に30分前補講で来る場合）
+            'hasMakeup' => $blockMakeups->contains('student_id', $student->id),
         ];
     }
 
@@ -157,5 +179,27 @@ class AttendanceController extends Controller
         }
 
         return preg_replace('/\d+組$/u', '', $firstName) ?? $firstName;
+    }
+
+    /**
+     * 振替・30分前補講でこのブロックに来る生徒の行を、元の欠席記録から作る。
+     *
+     * @return array<string, mixed>
+     */
+    private function buildMakeupRow(Attendance $attendance): array
+    {
+        return [
+            'kind' => 'makeup',
+            // 補講先での出欠を記録するとき（updateMakeupルート）に使う、元の欠席記録のID
+            'attendanceId' => $attendance->id,
+            'studentId' => $attendance->student_id,
+            'name' => $attendance->student->name,
+            'schoolClassName' => $attendance->student->schoolClass->display_name,
+            'lessonId' => $attendance->makeup_lesson_id,
+            'makeupType' => $attendance->makeup_type,
+            // 何日の欠席分の補講か（例：2026-09-24。画面では「9/24欠席分」と表示する）
+            'absentDate' => $attendance->lesson->date->toDateString(),
+            'makeupStatus' => $attendance->makeup_status,
+        ];
     }
 }

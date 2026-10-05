@@ -8,11 +8,17 @@ type Props = {
         startTime: string;
         endTime: string;
         rows: {
+            kind: 'regular' | 'makeup';
+            attendanceId: number | null;
             studentId: number;
             name: string;
             schoolClassName: string;
             lessonId: number;
-            displayStatus: string;
+            displayStatus?: string; // 通常の行だけ
+            hasMakeup?: boolean; // 通常の行だけ
+            makeupType?: string; // 「来る側」の行だけ
+            absentDate?: string; // 「来る側」の行だけ
+            makeupStatus?: string | null; // 「来る側」の行だけ
         }[];
     }[];
 };
