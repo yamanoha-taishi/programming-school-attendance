@@ -259,6 +259,130 @@ class AttendanceIndexTest extends TestCase
         );
     }
 
+    // ------------------------------------------------------------
+    // 振替・30分前補講で「来る側」の行
+    // ------------------------------------------------------------
+
+    public function test_makeup_row_is_shown_in_the_block_of_the_makeup_lesson()
+    {
+        $makeupLesson = $this->createLesson('2026-10-03', 'B', 'B1');
+
+        // 水曜Bの生徒が、9/30（水）を休んで10/3（土）の土曜Bに振替で来る
+        $student = $this->createStudent('B', 'B1', '小3', 'ア振替で来る', weekday: '水');
+        $absentLesson = $this->createLesson('2026-09-30', 'B', 'B1', '水');
+        $makeup = $this->createMakeup($student, $absentLesson, $makeupLesson, '振替');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page
+            ->has('blocks.0.rows', 1)
+            ->where('blocks.0.rows.0.kind', 'makeup')
+            ->where('blocks.0.rows.0.attendanceId', $makeup->id)
+            ->where('blocks.0.rows.0.studentId', $student->id)
+            ->where('blocks.0.rows.0.name', 'ア振替で来る')
+            ->where('blocks.0.rows.0.schoolClassName', '応用クラス1組')
+            ->where('blocks.0.rows.0.lessonId', $makeupLesson->id)
+            ->where('blocks.0.rows.0.makeupType', '振替')
+            ->where('blocks.0.rows.0.absentDate', '2026-09-30')
+            ->where('blocks.0.rows.0.makeupStatus', null)
+        );
+    }
+
+    public function test_makeup_rows_are_placed_after_regular_rows()
+    {
+        $makeupLesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $this->createStudent('B', 'B1', '小6', 'イ通常の生徒');
+
+        // 授業クラス・学年・名前のどれで比べても通常の生徒より前に来る生徒でも、「来る側」は末尾に並ぶ
+        $student = $this->createStudent('B', 'B1', '小3', 'ア振替で来る', weekday: '水');
+        $absentLesson = $this->createLesson('2026-09-30', 'B', 'B1', '水');
+        $this->createMakeup($student, $absentLesson, $makeupLesson, '振替');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page
+            ->has('blocks.0.rows', 2)
+            ->where('blocks.0.rows.0.kind', 'regular')
+            ->where('blocks.0.rows.0.name', 'イ通常の生徒')
+            ->where('blocks.0.rows.1.kind', 'makeup')
+            ->where('blocks.0.rows.1.name', 'ア振替で来る')
+        );
+    }
+
+    public function test_student_catching_up_in_own_class_has_both_regular_and_makeup_rows()
+    {
+        // 9/26（土）を休み、自分のクラスの次の回（10/3）に30分前補講で来る
+        $absentLesson = $this->createLesson('2026-09-26', 'A1', 'A1');
+        $makeupLesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $student = $this->createStudent('A1', 'A1', '年中', 'ア自分のクラスで補講');
+        $this->createStudent('A1', 'A1', '年長', 'イ補講なしの生徒');
+        $makeup = $this->createMakeup($student, $absentLesson, $makeupLesson, '30分前補講');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        // 通常の行（「補講あり」の印付き）と、末尾の補講の行の2行になる
+        $response->assertInertia(fn ($page) => $page
+            ->has('blocks.0.rows', 3)
+            ->where('blocks.0.rows.0.kind', 'regular')
+            ->where('blocks.0.rows.0.studentId', $student->id)
+            ->where('blocks.0.rows.0.hasMakeup', true)
+            ->where('blocks.0.rows.1.kind', 'regular')
+            ->where('blocks.0.rows.1.hasMakeup', false)
+            ->where('blocks.0.rows.2.kind', 'makeup')
+            ->where('blocks.0.rows.2.studentId', $student->id)
+            ->where('blocks.0.rows.2.attendanceId', $makeup->id)
+            ->where('blocks.0.rows.2.makeupType', '30分前補講')
+            ->where('blocks.0.rows.2.absentDate', '2026-09-26')
+        );
+    }
+
+    public function test_makeup_row_is_not_shown_in_other_blocks()
+    {
+        // 10/3に土曜A1（10:00）と土曜B（14:30）の2ブロックがあり、補講先は土曜Bだけ
+        $this->createLesson('2026-10-03', 'A1', 'A1');
+        $makeupLesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1', '小3', 'ア振替で来る', weekday: '水');
+        $absentLesson = $this->createLesson('2026-09-30', 'B', 'B1', '水');
+        $this->createMakeup($student, $absentLesson, $makeupLesson, '振替');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page
+            ->has('blocks', 2)
+            ->where('blocks.0.title', '基礎クラス1組')
+            ->has('blocks.0.rows', 0)
+            ->has('blocks.1.rows', 1)
+            ->where('blocks.1.rows.0.kind', 'makeup')
+        );
+    }
+
+    public function test_makeup_status_is_shown_on_makeup_row()
+    {
+        $makeupLesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1', '小3', 'ア振替で来た', weekday: '水');
+        $absentLesson = $this->createLesson('2026-09-30', 'B', 'B1', '水');
+        $this->createMakeup($student, $absentLesson, $makeupLesson, '振替', '出席');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('blocks.0.rows.0.makeupStatus', '出席')
+        );
+    }
+
+    public function test_makeup_row_of_soft_deleted_student_is_not_shown()
+    {
+        $makeupLesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1', '小3', 'ア削除された生徒', weekday: '水');
+        $absentLesson = $this->createLesson('2026-09-30', 'B', 'B1', '水');
+        $this->createMakeup($student, $absentLesson, $makeupLesson, '振替');
+        $student->delete();
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page->has('blocks.0.rows', 0));
+    }
+
     /**
      * 指定した日付の授業回を1件作る。
      * lessonsには(lesson_plan_id, section_id)の複合UNIQUE制約があるため、
@@ -285,13 +409,13 @@ class AttendanceIndexTest extends TestCase
     }
 
     /**
-     * 土曜日の授業実施単位（A1／A2／A3／B）に、指定した授業クラスの授業回を1件作る。
+     * 指定した曜日（省略時は土曜日）の授業実施単位（A1／A2／A3／B）に、指定した授業クラスの授業回を1件作る。
      * lessonsの(lesson_plan_id, section_id)の複合UNIQUE制約に当たらないよう、
      * その授業実施単位でまだ使っていない授業内容を選ぶ。
      */
-    private function createLesson(string $date, string $sectionName, string $classCode): Lesson
+    private function createLesson(string $date, string $sectionName, string $classCode, string $weekday = '土'): Lesson
     {
-        $section = Section::where('name', $sectionName)->where('weekday', '土')->firstOrFail();
+        $section = Section::where('name', $sectionName)->where('weekday', $weekday)->firstOrFail();
 
         $lessonPlan = LessonPlan::whereHas('schoolClass', fn ($query) => $query->where('code', $classCode))
             ->whereDoesntHave('lessons', fn ($query) => $query->where('section_id', $section->id))
@@ -306,7 +430,7 @@ class AttendanceIndexTest extends TestCase
     }
 
     /**
-     * 土曜日の授業実施単位に所属する生徒を1人作る。
+     * 指定した曜日（省略時は土曜日）の授業実施単位に所属する生徒を1人作る。
      * 並び順の確認で分かりやすいよう、名前と名前カナには同じ文字列を入れる。
      */
     private function createStudent(
@@ -316,16 +440,38 @@ class AttendanceIndexTest extends TestCase
         string $name,
         ?string $leaveFrom = null,
         ?string $leaveUntil = null,
+        string $weekday = '土',
     ): Student {
         return Student::create([
             'guardian_id' => Guardian::factory()->create()->id,
             'school_class_id' => SchoolClass::where('code', $classCode)->firstOrFail()->id,
-            'section_id' => Section::where('name', $sectionName)->where('weekday', '土')->firstOrFail()->id,
+            'section_id' => Section::where('name', $sectionName)->where('weekday', $weekday)->firstOrFail()->id,
             'grade' => $grade,
             'name' => $name,
             'name_kana' => $name,
             'leave_from' => $leaveFrom,
             'leave_until' => $leaveUntil,
+        ]);
+    }
+
+    /**
+     * 欠席して、別の授業回に振替・30分前補講で来る予定の欠席記録を作る。
+     */
+    private function createMakeup(
+        Student $student,
+        Lesson $absentLesson,
+        Lesson $makeupLesson,
+        string $makeupType,
+        ?string $makeupStatus = null,
+    ): Attendance {
+        return Attendance::create([
+            'student_id' => $student->id,
+            'lesson_id' => $absentLesson->id,
+            'status' => '欠席',
+            'is_late' => false,
+            'makeup_type' => $makeupType,
+            'makeup_lesson_id' => $makeupLesson->id,
+            'makeup_status' => $makeupStatus,
         ]);
     }
 }
