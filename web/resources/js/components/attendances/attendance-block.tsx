@@ -8,14 +8,23 @@ export default function AttendanceBlock({
 }) {
     return (
         <section>
-            <h2>{block.title}</h2>
-            <p>
-                {block.startTime}-{block.endTime}
-            </p>
-            <p>
-                出席{block.summary.present}・欠席{block.summary.absent}・未記録
-                {block.summary.unrecorded}
-            </p>
+            {/* 見出し（クラス名・時間・ブロックの出欠サマリー） */}
+            <div className="border-y border-border bg-primary-tint px-3 py-1.5">
+                <div className="flex justify-between text-xs font-bold">
+                    <span>{block.title}</span>
+                    <span className="font-normal text-muted-foreground">
+                        {block.startTime}-{block.endTime}
+                    </span>
+                </div>
+                <div className="mt-0.5 text-xs text-muted-foreground">
+                    出席{block.summary.present} ・ 欠席{block.summary.absent} ・{' '}
+                    <b className="text-foreground">
+                        未記録{block.summary.unrecorded}
+                    </b>
+                </div>
+            </div>
+
+            {/* 生徒の行 */}
             <ul>
                 {block.rows.map((row) => (
                     <AttendanceRow
