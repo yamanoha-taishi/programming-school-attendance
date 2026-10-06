@@ -1,4 +1,7 @@
+import { ChevronRight } from 'lucide-react';
+import { useState } from 'react';
 import StatusBadge from '@/components/attendances/status-badge';
+import { Button } from '@/components/ui/button';
 import type { AttendanceRowData } from '@/types/attendance';
 
 // 補講の種類ごとの色（淡い背景＋同系統の文字色）
@@ -14,33 +17,97 @@ function formatMonthDay(date: string): string {
     return `${Number(month)}/${Number(day)}`;
 }
 
-export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
+// 記録済みか（出欠サマリーで「未記録」に数えない行か）
+function isRecorded(row: AttendanceRowData): boolean {
+    return row.kind === 'regular'
+        ? row.status !== null
+        : row.makeupStatus !== null;
+}
+
+// 「補講あり」の印。同じブロックの末尾に、この生徒の補講の行もある通常の行に付ける
+function MakeupMark({ row }: { row: AttendanceRowData }) {
+    if (row.kind !== 'regular' || !row.hasMakeup) {
+        return null;
+    }
+
     return (
-        <li className="flex items-center justify-between border-b border-border bg-card px-3 py-2.5">
-            {/* 左：名前・カナ */}
-            <div>
-                <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold">{row.name}</span>
-                    {/* 同じブロックの末尾に、この生徒の補講の行もある */}
-                    {row.kind === 'regular' && row.hasMakeup && (
-                        <span className="rounded-full bg-status-makeup-bg px-2 py-0.5 text-xs font-semibold text-status-makeup">
-                            補講あり
-                        </span>
-                    )}
+        <span className="rounded-full bg-status-makeup-bg px-2 py-0.5 text-xs font-semibold text-status-makeup">
+            補講あり
+        </span>
+    );
+}
+
+// 行の右側に出すバッジ
+function RowBadges({ row }: { row: AttendanceRowData }) {
+    if (row.kind === 'regular') {
+        return <StatusBadge status={row.displayStatus} />;
+    }
+
+    return (
+        <>
+            <span
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${makeupTypeColors[row.makeupType] ?? ''}`}
+            >
+                {row.makeupType}（{formatMonthDay(row.absentDate)}欠席分）
+            </span>
+            {row.makeupStatus !== null && (
+                <StatusBadge status={row.makeupStatus} />
+            )}
+        </>
+    );
+}
+
+export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
+    const [isOpen, setIsOpen] = useState(!isRecorded(row));
+
+    // 折りたたみ：名前とバッジだけの1行。タップすると開く
+    if (!isOpen) {
+        return (
+            <li className="border-b border-border bg-card">
+                <button
+                    type="button"
+                    onClick={() => setIsOpen(true)}
+                    className="flex w-full items-center justify-between px-3 py-2 text-left"
+                >
+                    <span className="flex items-center gap-1.5">
+                        <span className="text-sm">{row.name}</span>
+                        <MakeupMark row={row} />
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                        <RowBadges row={row} />
+                        <ChevronRight className="size-4 text-text-faint" />
+                    </span>
+                </button>
+            </li>
+        );
+    }
+
+    // 展開：名前・カナ・バッジと、出席／欠席のボタン
+    return (
+        <li className="border-b border-border bg-card px-3 py-2.5">
+            <div className="flex items-center justify-between">
+                <div>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-bold">{row.name}</span>
+                        <MakeupMark row={row} />
+                    </div>
+                    <div className="text-xs text-text-faint">
+                        {row.nameKana}
+                    </div>
                 </div>
-                <div className="text-xs text-text-faint">{row.nameKana}</div>
+                <div className="flex items-center gap-1.5">
+                    <RowBadges row={row} />
+                </div>
             </div>
 
-            {/* 右：通常の行は表示ステータス、「来る側」の行は補講の種類と欠席日 */}
-            {row.kind === 'regular' ? (
-                <StatusBadge status={row.displayStatus} />
-            ) : (
-                <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${makeupTypeColors[row.makeupType] ?? ''}`}
-                >
-                    {row.makeupType}（{formatMonthDay(row.absentDate)}欠席分）
-                </span>
-            )}
+            <div className="mt-2 flex gap-1.5">
+                <Button type="button" variant="outline" className="flex-1">
+                    出席
+                </Button>
+                <Button type="button" variant="outline" className="flex-1">
+                    欠席
+                </Button>
+            </div>
         </li>
     );
 }
