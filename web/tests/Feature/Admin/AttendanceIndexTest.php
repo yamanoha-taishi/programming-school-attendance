@@ -20,7 +20,7 @@ use Tests\TestCase;
 
 /**
  * 出席記録・一覧画面（admin.attendances.index）のテスト。
- * 表示する日付の決め方と、授業実施単位ごとのブロック・生徒の行の組み立てを確認する。
+ * 表示する日付の決め方と、授業実施単位ごとのブロック・生徒の行の組み立て、出欠サマリーを確認する。
  * 仕様はルーティング設計のindexの備考、要件定義書5.4を参照。
  */
 class AttendanceIndexTest extends TestCase
@@ -383,6 +383,101 @@ class AttendanceIndexTest extends TestCase
         $response->assertInertia(fn ($page) => $page->has('blocks.0.rows', 0));
     }
 
+    // ------------------------------------------------------------
+    // 出欠サマリー
+    // ------------------------------------------------------------
+
+    public function test_regular_rows_are_counted_by_status()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+
+        $this->createAttendance($this->createStudent('A1', 'A1', '年中', 'ア出席'), $lesson, '出席');
+        $this->createAttendance($this->createStudent('A1', 'A1', '年中', 'イ遅刻して出席'), $lesson, '出席', isLate: true);
+        $this->createAttendance($this->createStudent('A1', 'A1', '年中', 'ウ欠席'), $lesson, '欠席');
+        $this->createStudent('A1', 'A1', '年中', 'エ記録なし');
+        // 遅刻の連絡だけ来ていて、まだ来たかどうか記録していない
+        $this->createAttendance($this->createStudent('A1', 'A1', '年中', 'オ遅刻連絡のみ'), $lesson, null, isLate: true);
+
+        // 振替済みの生徒も、この日の記録としては「欠席」に数える
+        $student = $this->createStudent('A1', 'A1', '年中', 'カ振替済み');
+        $makeupLesson = $this->createLesson('2026-10-07', 'B', 'B1', '水');
+        $this->createMakeup($student, $lesson, $makeupLesson, '振替', '出席');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('blocks.0.rows.0.status', '出席')
+            ->where('blocks.0.rows.3.status', null)
+            ->where('blocks.0.summary', ['present' => 2, 'absent' => 2, 'unrecorded' => 2])
+        );
+    }
+
+    public function test_makeup_rows_are_counted_by_makeup_status()
+    {
+        $makeupLesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $absentLesson = $this->createLesson('2026-09-30', 'B', 'B1', '水');
+
+        $this->createMakeup($this->createStudent('B', 'B1', '小3', 'ア補講に出席', weekday: '水'), $absentLesson, $makeupLesson, '振替', '出席');
+        $this->createMakeup($this->createStudent('B', 'B1', '小3', 'イ補講も欠席', weekday: '水'), $absentLesson, $makeupLesson, '振替', '欠席');
+        $this->createMakeup($this->createStudent('B', 'B1', '小3', 'ウ補講は未記録', weekday: '水'), $absentLesson, $makeupLesson, '振替');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page
+            ->has('blocks.0.rows', 3)
+            ->where('blocks.0.summary', ['present' => 1, 'absent' => 1, 'unrecorded' => 1])
+        );
+    }
+
+    public function test_student_catching_up_in_own_class_is_counted_separately_for_each_row()
+    {
+        // 自分のクラスの回に30分前補講で来る生徒。通常の授業は出席を記録済み、補講はまだ記録していない
+        $absentLesson = $this->createLesson('2026-09-26', 'A1', 'A1');
+        $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $student = $this->createStudent('A1', 'A1', '年中', 'ア自分のクラスで補講');
+        $this->createAttendance($student, $lesson, '出席');
+        $this->createMakeup($student, $absentLesson, $lesson, '30分前補講');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        // 1人の生徒でも、通常の行と補講の行を別々に数える（補講の記録忘れが「未記録」に残る）
+        $response->assertInertia(fn ($page) => $page
+            ->has('blocks.0.rows', 2)
+            ->where('blocks.0.summary', ['present' => 1, 'absent' => 0, 'unrecorded' => 1])
+        );
+    }
+
+    public function test_day_summary_is_total_of_all_blocks()
+    {
+        // 土曜A1：出席1・未記録1
+        $lessonA1 = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $this->createAttendance($this->createStudent('A1', 'A1', '年中', 'ア出席'), $lessonA1, '出席');
+        $this->createStudent('A1', 'A1', '年中', 'イ記録なし');
+
+        // 土曜B：欠席1・「来る側」の出席1
+        $lessonB = $this->createLesson('2026-10-03', 'B', 'B1');
+        $this->createAttendance($this->createStudent('B', 'B1', '小3', 'ウ欠席'), $lessonB, '欠席');
+        $absentLesson = $this->createLesson('2026-09-30', 'B', 'B1', '水');
+        $this->createMakeup($this->createStudent('B', 'B1', '小3', 'エ振替で来た', weekday: '水'), $absentLesson, $lessonB, '振替', '出席');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('blocks.0.summary', ['present' => 1, 'absent' => 0, 'unrecorded' => 1])
+            ->where('blocks.1.summary', ['present' => 1, 'absent' => 1, 'unrecorded' => 0])
+            ->where('daySummary', ['present' => 2, 'absent' => 1, 'unrecorded' => 1])
+        );
+    }
+
+    public function test_day_summary_is_zero_on_a_day_without_lessons()
+    {
+        $response = $this->getAttendances('2026-10-04');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('daySummary', ['present' => 0, 'absent' => 0, 'unrecorded' => 0])
+        );
+    }
+
     /**
      * 指定した日付の授業回を1件作る。
      * lessonsには(lesson_plan_id, section_id)の複合UNIQUE制約があるため、
@@ -472,6 +567,19 @@ class AttendanceIndexTest extends TestCase
             'makeup_type' => $makeupType,
             'makeup_lesson_id' => $makeupLesson->id,
             'makeup_status' => $makeupStatus,
+        ]);
+    }
+
+    /**
+     * 通常の授業回の出席記録を作る。statusがnullなら未記録（遅刻の連絡だけ来ている状態など）。
+     */
+    private function createAttendance(Student $student, Lesson $lesson, ?string $status, bool $isLate = false): Attendance
+    {
+        return Attendance::create([
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'status' => $status,
+            'is_late' => $isLate,
         ]);
     }
 }
