@@ -253,6 +253,7 @@ class AttendanceIndexTest extends TestCase
 
         $response->assertInertia(fn ($page) => $page
             ->where('blocks.0.rows.0.studentId', $present->id)
+            ->where('blocks.0.rows.0.nameKana', 'ア出席')
             ->where('blocks.0.rows.0.lessonId', $lesson->id)
             ->where('blocks.0.rows.0.displayStatus', '通常出席')
             ->where('blocks.0.rows.1.displayStatus', '未定')
@@ -280,6 +281,7 @@ class AttendanceIndexTest extends TestCase
             ->where('blocks.0.rows.0.attendanceId', $makeup->id)
             ->where('blocks.0.rows.0.studentId', $student->id)
             ->where('blocks.0.rows.0.name', 'ア振替で来る')
+            ->where('blocks.0.rows.0.nameKana', 'ア振替で来る')
             ->where('blocks.0.rows.0.schoolClassName', '応用クラス1組')
             ->where('blocks.0.rows.0.lessonId', $makeupLesson->id)
             ->where('blocks.0.rows.0.makeupType', '振替')

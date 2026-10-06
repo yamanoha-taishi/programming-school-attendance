@@ -15,6 +15,7 @@ type Props = {
             attendanceId: number | null;
             studentId: number;
             name: string;
+            nameKana: string;
             schoolClassName: string;
             lessonId: number;
             displayStatus?: string; // 通常の行だけ
