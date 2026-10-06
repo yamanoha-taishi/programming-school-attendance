@@ -20,21 +20,25 @@
     --brand-accent: #E8823C;
     --brand-accent-hover: #C86A28;
     --brand-accent-tint: #FCEADA;
+    --brand-accent-text: #8F4C1D;
 
     --status-attend: #2F9E4F;
     --status-attend-bg: #E8F7EC;
     --status-attend-text: #1F6E37;
     --status-late: #B08000;
     --status-late-bg: #FBF3DC;
+    --status-late-text: #7D5B00;
     --status-absent: #D6483F;
     --status-absent-bg: #FBEAE8;
     --status-absent-text: #B3261E;
     --status-transfer: #1E8A8A;
     --status-transfer-bg: #E4F5F5;
+    --status-transfer-text: #176B6B;
     --status-makeup: #7A4FC9;
     --status-makeup-bg: #F1EBFB;
     --status-pending: #767C87;
     --status-pending-bg: #EEEFF1;
+    --status-pending-text: #5B5F68;
 
     --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
     --shadow-card: 0 1px 2px rgba(31,36,48,0.06), 0 1px 1px rgba(31,36,48,0.04);
@@ -321,19 +325,19 @@
     <p class="lead">出席記録・一覧画面で使う6状態。色だけに頼らず、常にラベルテキストとセットで表示する前提の配色です（色覚特性への配慮、および一覧上でのスキャンのしやすさのため）。</p>
     <div class="status-grid">
       <div class="status-card">
-        <span class="badge" style="background:var(--status-attend-bg); color:var(--status-attend)"><span class="dot" style="background:var(--status-attend)"></span>通常出席</span>
+        <span class="badge" style="background:var(--status-attend-bg); color:var(--status-attend-text)"><span class="dot" style="background:var(--status-attend)"></span>通常出席</span>
         <div class="hex-row">#2F9E4F ／ bg #E8F7EC</div>
       </div>
       <div class="status-card">
-        <span class="badge" style="background:var(--status-late-bg); color:var(--status-late)"><span class="dot" style="background:var(--status-late)"></span>遅刻</span>
+        <span class="badge" style="background:var(--status-late-bg); color:var(--status-late-text)"><span class="dot" style="background:var(--status-late)"></span>遅刻</span>
         <div class="hex-row">#B08000 ／ bg #FBF3DC</div>
       </div>
       <div class="status-card">
-        <span class="badge" style="background:var(--status-absent-bg); color:var(--status-absent)"><span class="dot" style="background:var(--status-absent)"></span>欠席</span>
+        <span class="badge" style="background:var(--status-absent-bg); color:var(--status-absent-text)"><span class="dot" style="background:var(--status-absent)"></span>欠席</span>
         <div class="hex-row">#D6483F ／ bg #FBEAE8</div>
       </div>
       <div class="status-card">
-        <span class="badge" style="background:var(--status-transfer-bg); color:var(--status-transfer)"><span class="dot" style="background:var(--status-transfer)"></span>振替済み</span>
+        <span class="badge" style="background:var(--status-transfer-bg); color:var(--status-transfer-text)"><span class="dot" style="background:var(--status-transfer)"></span>振替済み</span>
         <div class="hex-row">#1E8A8A ／ bg #E4F5F5</div>
       </div>
       <div class="status-card">
@@ -341,7 +345,7 @@
         <div class="hex-row">#7A4FC9 ／ bg #F1EBFB</div>
       </div>
       <div class="status-card">
-        <span class="badge" style="background:var(--status-pending-bg); color:var(--status-pending)"><span class="dot" style="background:var(--status-pending)"></span>未定</span>
+        <span class="badge" style="background:var(--status-pending-bg); color:var(--status-pending-text)"><span class="dot" style="background:var(--status-pending)"></span>未定</span>
         <div class="hex-row">#767C87 ／ bg #EEEFF1</div>
       </div>
     </div>

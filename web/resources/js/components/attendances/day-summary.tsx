@@ -13,7 +13,7 @@ export default function DaySummary({
             <span className="rounded-full bg-status-absent-bg px-2 py-0.5 font-semibold text-status-absent-text">
                 欠席 {summary.absent}
             </span>
-            <span className="rounded-full bg-brand-accent-tint px-2 py-0.5 font-semibold text-brand-accent-hover">
+            <span className="rounded-full bg-brand-accent-tint px-2 py-0.5 font-semibold text-brand-accent-text">
                 未記録 {summary.unrecorded}
             </span>
         </div>

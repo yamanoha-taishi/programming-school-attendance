@@ -3,7 +3,7 @@ import type { AttendanceRowData } from '@/types/attendance';
 
 // 補講の種類ごとの色（淡い背景＋同系統の文字色）
 const makeupTypeColors: Record<string, string> = {
-    振替: 'bg-status-transfer-bg text-status-transfer',
+    振替: 'bg-status-transfer-bg text-status-transfer-text',
     '30分前補講': 'bg-status-makeup-bg text-status-makeup',
 };
 
