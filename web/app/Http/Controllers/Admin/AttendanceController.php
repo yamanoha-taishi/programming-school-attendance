@@ -53,6 +53,11 @@ class AttendanceController extends Controller
         return Inertia::render('admin/attendances/index', [
             'date' => $date,
             'blocks' => $blocks,
+            'daySummary' => [
+                'present' => $blocks->sum('summary.present'),
+                'absent' => $blocks->sum('summary.absent'),
+                'unrecorded' => $blocks->sum('summary.unrecorded'),
+            ],
         ]);
     }
 
@@ -114,12 +119,15 @@ class AttendanceController extends Controller
 
         $makeupRows = $blockMakeups->map(fn (Attendance $attendance) => $this->buildMakeupRow($attendance));
 
+        $rows = $regularRows->concat($makeupRows)->values();
+
         return [
             'sectionId' => $section->id,
             'title' => $this->blockTitle($sectionLessons),
             'startTime' => substr($section->start_time, 0, 5),
             'endTime' => substr($section->end_time, 0, 5),
-            'rows' => $regularRows->concat($makeupRows)->values(),
+            'rows' => $rows,
+            'summary' => $this->summarize($rows),
         ];
     }
 
@@ -153,6 +161,7 @@ class AttendanceController extends Controller
             'schoolClassName' => $lesson->lessonPlan->schoolClass->display_name,
             'lessonId' => $lesson->id,
             'displayStatus' => AttendanceDisplayStatus::fromAttendance($attendance)->value,
+            'status' => $attendance?->status,
             // 同じブロックの末尾に、この生徒の補講の行もあるか（自分のクラスの回に30分前補講で来る場合）
             'hasMakeup' => $blockMakeups->contains('student_id', $student->id),
         ];
@@ -200,6 +209,26 @@ class AttendanceController extends Controller
             // 何日の欠席分の補講か（例：2026-09-24。画面では「9/24欠席分」と表示する）
             'absentDate' => $attendance->lesson->date->toDateString(),
             'makeupStatus' => $attendance->makeup_status,
+        ];
+    }
+
+    /**
+     * 行を「出席・欠席・未記録」に分けて数える。
+     * 通常の行は status、来る側の行は makeupStatus で判定する。
+     *
+     * @param  Collection<int, array<string, mixed>>  $rows
+     * @return array{present: int, absent: int, unrecorded: int}
+     */
+    private function summarize(Collection $rows): array
+    {
+        $statuses = $rows->map(
+            fn (array $row) => $row['kind'] === 'regular' ? $row['status'] : $row['makeupStatus']
+        );
+
+        return [
+            'present' => $statuses->filter(fn ($status) => $status === '出席')->count(),
+            'absent' => $statuses->filter(fn ($status) => $status === '欠席')->count(),
+            'unrecorded' => $statuses->filter(fn ($status) => $status === null)->count(),
         ];
     }
 }
