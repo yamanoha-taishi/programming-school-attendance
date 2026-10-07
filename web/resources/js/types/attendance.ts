@@ -6,7 +6,6 @@ export type AttendanceSummary = {
 
 // 両方の行に共通する項目
 type AttendanceRowBase = {
-    attendanceId: number | null;
     studentId: number;
     name: string;
     nameKana: string;
@@ -17,6 +16,7 @@ type AttendanceRowBase = {
 // 通常の行
 export type RegularRowData = AttendanceRowBase & {
     kind: 'regular';
+    attendanceId: number | null; // まだ記録が無い生徒は null
     displayStatus: string;
     status: string | null;
     hasMakeup: boolean;
@@ -25,6 +25,7 @@ export type RegularRowData = AttendanceRowBase & {
 // 「来る側」の行
 export type MakeupRowData = AttendanceRowBase & {
     kind: 'makeup';
+    attendanceId: number; // 元の欠席レコードが必ずある
     makeupType: string;
     absentDate: string;
     makeupStatus: string | null;

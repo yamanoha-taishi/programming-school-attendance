@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -97,9 +98,23 @@ class AttendanceController extends Controller
         return back();
     }
 
-    public function updateMakeup(Request $request, Attendance $attendance): void
+    public function updateMakeup(Request $request, Attendance $attendance): RedirectResponse
     {
-        //
+        $validated = $request->validate([
+            'makeup_status' => ['required', Rule::in(['出席', '欠席'])],
+        ]);
+
+        // 振替・30分前補講で、補講先の授業回が決まっている記録だけ受け付ける
+        if (! in_array($attendance->makeup_type, ['振替', '30分前補講'], true)
+            || $attendance->makeup_lesson_id === null) {
+            throw ValidationException::withMessages([
+                'makeup_status' => '補講予定が無い記録には、補講先の出欠を記録できません。',
+            ]);
+        }
+
+        $attendance->update(['makeup_status' => $validated['makeup_status']]);
+
+        return back();
     }
 
     /**

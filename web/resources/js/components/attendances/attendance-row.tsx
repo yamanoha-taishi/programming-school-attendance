@@ -3,7 +3,7 @@ import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import StatusBadge from '@/components/attendances/status-badge';
 import { Button } from '@/components/ui/button';
-import { update } from '@/routes/admin/attendances';
+import { makeup, update } from '@/routes/admin/attendances';
 import type { AttendanceRowData } from '@/types/attendance';
 
 // 補講の種類ごとの色（淡い背景＋同系統の文字色）
@@ -62,20 +62,30 @@ function RowBadges({ row }: { row: AttendanceRowData }) {
 export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
     const [isOpen, setIsOpen] = useState(!isRecorded(row));
 
-    // 出席を記録する（通常の行のみ）
-    function recordPresent() {
-        if (row.kind !== 'regular') {
-            return;
-        }
+    // 送信して、保存できたら行を折りたたむ
+    function send(url: string, data: Record<string, string>) {
+        router.patch(url, data, {
+            preserveScroll: true, // 画面の一番上に戻らないようにする
+            onSuccess: () => setIsOpen(false), // 保存できたら行を折りたたむ
+        });
+    }
 
-        router.patch(
-            update({ lesson: row.lessonId, student: row.studentId }).url,
-            { status: '出席' },
-            {
-                preserveScroll: true, // 画面の一番上に戻らないようにする
-                onSuccess: () => setIsOpen(false), // 保存できたら行を折りたたむ
-            },
-        );
+    // ［出席］：通常の行は授業の出席、来る側の行は補講先での出席を記録する
+    function handlePresent() {
+        if (row.kind === 'regular') {
+            send(update({ lesson: row.lessonId, student: row.studentId }).url, {
+                status: '出席',
+            });
+        } else {
+            send(makeup(row.attendanceId).url, { makeup_status: '出席' });
+        }
+    }
+
+    // ［欠席］：来る側の行は補講先での欠席を記録する（通常の行はG-3で作る）
+    function handleAbsent() {
+        if (row.kind === 'makeup') {
+            send(makeup(row.attendanceId).url, { makeup_status: '欠席' });
+        }
     }
 
     // 折りたたみ：名前とバッジだけの1行。タップすると開く
@@ -123,11 +133,16 @@ export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
                     type="button"
                     variant="outline"
                     className="flex-1"
-                    onClick={recordPresent}
+                    onClick={handlePresent}
                 >
                     出席
                 </Button>
-                <Button type="button" variant="outline" className="flex-1">
+                <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={handleAbsent}
+                >
                     欠席
                 </Button>
             </div>
