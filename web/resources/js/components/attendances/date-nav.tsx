@@ -1,5 +1,12 @@
 import { Link } from '@inertiajs/react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+    Sheet,
+    SheetClose,
+    SheetContent,
+    SheetTitle,
+    SheetTrigger,
+} from '@/components/ui/sheet';
 import { index } from '@/routes/admin/attendances';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
@@ -28,8 +35,8 @@ export default function DateNav({
         'flex h-8 items-center rounded-md border border-border px-2 text-muted-foreground';
 
     return (
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+            <div className="col-start-2 flex items-center gap-2.5">
                 {prevDate ? (
                     <Link
                         href={index({ query: { date: prevDate } }).url}
@@ -44,9 +51,52 @@ export default function DateNav({
                     </span>
                 )}
 
-                <span className="w-30 rounded-full border border-primary bg-primary-tint px-2 py-1 text-center text-sm font-bold text-primary">
-                    {formatDateLabel(date)}
-                </span>
+                <Sheet>
+                    {/* 日付ボタン：タップすると日付の一覧を開く */}
+                    <SheetTrigger className="flex w-30 items-center justify-center gap-1 rounded-full border border-primary bg-primary-tint px-2 py-1 text-sm font-bold text-primary">
+                        {formatDateLabel(date)}
+                        <ChevronDown className="size-4" />
+                    </SheetTrigger>
+
+                    <SheetContent
+                        side="bottom"
+                        aria-describedby={undefined}
+                        className="rounded-t-2xl p-4"
+                    >
+                        <SheetTitle className="text-sm font-bold">
+                            日付を選択
+                        </SheetTitle>
+
+                        {/* 授業がある日付の一覧（新しい順）。多いのでスクロールさせる */}
+                        <ul className="max-h-[50dvh] space-y-2 overflow-y-auto">
+                            {lessonDates.map((lessonDate) => (
+                                <li key={lessonDate}>
+                                    {/* 選ぶと、その日付に切り替えてモーダルを閉じる */}
+                                    <SheetClose asChild>
+                                        <Link
+                                            href={
+                                                index({
+                                                    query: { date: lessonDate },
+                                                }).url
+                                            }
+                                            className={`block rounded-lg border px-3 py-2.5 text-sm ${
+                                                lessonDate === date
+                                                    ? 'border-primary bg-primary-tint font-bold text-primary'
+                                                    : 'border-border'
+                                            }`}
+                                        >
+                                            {formatDateLabel(lessonDate)}
+                                        </Link>
+                                    </SheetClose>
+                                </li>
+                            ))}
+                        </ul>
+
+                        <SheetClose className="h-11 rounded-lg border border-border text-sm font-bold">
+                            キャンセル
+                        </SheetClose>
+                    </SheetContent>
+                </Sheet>
 
                 {nextDate ? (
                     <Link
@@ -65,7 +115,7 @@ export default function DateNav({
 
             <Link
                 href={index().url}
-                className="rounded-full border border-primary bg-card px-2.5 py-1 text-xs text-primary"
+                className="justify-self-end rounded-full border border-primary bg-card px-2.5 py-1 text-xs text-primary"
             >
                 今日
             </Link>
