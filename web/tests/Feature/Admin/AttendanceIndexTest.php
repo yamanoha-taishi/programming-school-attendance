@@ -20,7 +20,7 @@ use Tests\TestCase;
 
 /**
  * 出席記録・一覧画面（admin.attendances.index）のテスト。
- * 表示する日付の決め方と、授業実施単位ごとのブロック・生徒の行の組み立て、出欠サマリーを確認する。
+ * 表示する日付の決め方と、日付の切り替えに使う授業日の一覧、授業実施単位ごとのブロック・生徒の行の組み立て、出欠サマリーを確認する。
  * 仕様はルーティング設計のindexの備考、要件定義書5.4を参照。
  */
 class AttendanceIndexTest extends TestCase
@@ -108,6 +108,53 @@ class AttendanceIndexTest extends TestCase
             ->get(route('admin.attendances.index', ['date' => '2026/09/26']));
 
         $response->assertSessionHasErrors('date');
+    }
+
+    // ------------------------------------------------------------
+    // 日付の切り替え（◀ ▶・日付一覧）に使う授業日の一覧
+    // ------------------------------------------------------------
+
+    public function test_lesson_dates_are_lesson_days_up_to_today_in_descending_order()
+    {
+        // 作成順ではなく新しい順に並び、今日（9/26）より後の9/30は含まれないことを確認する
+        $this->createLessonOn('2026-09-23');
+        $this->createLessonOn('2026-09-30');
+        $this->createLessonOn('2026-09-16');
+        $this->createLessonOn('2026-09-26');
+
+        // 表示している日付（9/16）に関係なく、一覧は同じになる
+        $response = $this->getAttendances('2026-09-16');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('lessonDates', ['2026-09-26', '2026-09-23', '2026-09-16'])
+        );
+    }
+
+    public function test_lesson_dates_have_no_duplicates_when_there_are_multiple_lessons_on_the_same_day()
+    {
+        // 9/19に、土曜A1と土曜B（B1・B2）の3件の授業回がある
+        $this->createLesson('2026-09-19', 'A1', 'A1');
+        $this->createLesson('2026-09-19', 'B', 'B1');
+        $this->createLesson('2026-09-19', 'B', 'B2');
+
+        $response = $this->getAttendances('2026-09-19');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('lessonDates', ['2026-09-19'])
+        );
+    }
+
+    public function test_lesson_dates_are_empty_when_there_are_no_lessons_up_to_today()
+    {
+        // 年度開始前など、今日より後にしか授業日が無い場合
+        $this->createLessonOn('2026-09-30');
+
+        $response = $this->actingAs($this->staff, 'staff')
+            ->get(route('admin.attendances.index'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('lessonDates', [])
+        );
     }
 
     // ------------------------------------------------------------
