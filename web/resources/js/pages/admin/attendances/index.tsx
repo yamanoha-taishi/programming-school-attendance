@@ -1,5 +1,6 @@
 import { Head } from '@inertiajs/react';
 import AttendanceBlock from '@/components/attendances/attendance-block';
+import DateNav from '@/components/attendances/date-nav';
 import DaySummary from '@/components/attendances/day-summary';
 import type {
     AttendanceBlockData,
@@ -23,9 +24,14 @@ export default function AttendancesIndex({
         <>
             <Head title="出席記録・一覧" />
             <header className="border-b border-border bg-card px-3 py-2.5">
-                <p className="text-sm font-bold">{date}</p>
+                <DateNav date={date} lessonDates={lessonDates} />
                 <DaySummary summary={daySummary} />
             </header>
+            {blocks.length === 0 && (
+                <p className="px-3 py-10 text-center text-sm text-muted-foreground">
+                    この日は授業がありません
+                </p>
+            )}
             {blocks.map((block) => (
                 <AttendanceBlock key={block.sectionId} block={block} />
             ))}
