@@ -46,7 +46,7 @@ class AttendanceDisplayStatusTest extends TestCase
                 AttendanceDisplayStatus::Undecided,
             ],
 
-            // ---- 通常出席・遅刻 ----
+            // ---- 出席・遅刻 ----
             '時間通りに出席した' => [
                 ['status' => '出席', 'is_late' => false],
                 AttendanceDisplayStatus::Present,

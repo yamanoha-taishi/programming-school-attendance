@@ -1,5 +1,4 @@
 const colors: Record<string, string> = {
-    通常出席: 'bg-status-attend-bg text-status-attend-text',
     出席: 'bg-status-attend-bg text-status-attend-text',
     遅刻: 'bg-status-late-bg text-status-late-text',
     欠席: 'bg-status-absent-bg text-status-absent-text',
