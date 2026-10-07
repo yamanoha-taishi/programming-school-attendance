@@ -52,6 +52,7 @@ class AttendanceController extends Controller
 
         return Inertia::render('admin/attendances/index', [
             'date' => $date,
+            'lessonDates' => $this->lessonDates(),
             'blocks' => $blocks,
             'daySummary' => [
                 'present' => $blocks->sum('summary.present'),
@@ -85,6 +86,21 @@ class AttendanceController extends Controller
         return $latest !== null
             ? Carbon::parse($latest)->toDateString()
             : $today;
+    }
+
+    /**
+     * 日付の切り替え（◀ ▶・日付一覧）に使う、今日以前で授業がある日付の一覧（新しい順）。
+     *
+     * @return Collection<int, string>
+     */
+    private function lessonDates(): Collection
+    {
+        return Lesson::whereDate('date', '<=', Carbon::today()->toDateString())
+            ->orderByDesc('date')
+            ->pluck('date')
+            ->map(fn ($date) => Carbon::parse($date)->toDateString())
+            ->unique()
+            ->values();
     }
 
     /**

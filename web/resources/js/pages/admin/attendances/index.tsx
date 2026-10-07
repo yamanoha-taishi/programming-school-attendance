@@ -8,11 +8,17 @@ import type {
 
 type Props = {
     date: string;
+    lessonDates: string[]; // 今日以前で授業がある日付（新しい順）
     daySummary: AttendanceSummary;
     blocks: AttendanceBlockData[];
 };
 
-export default function AttendancesIndex({ date, daySummary, blocks }: Props) {
+export default function AttendancesIndex({
+    date,
+    lessonDates,
+    daySummary,
+    blocks,
+}: Props) {
     return (
         <>
             <Head title="出席記録・一覧" />
