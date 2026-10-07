@@ -28,7 +28,11 @@ export default function AttendanceBlock({
             <ul>
                 {block.rows.map((row) => (
                     <AttendanceRow
-                        key={`${row.kind}-${row.attendanceId ?? row.studentId}`}
+                        key={
+                            row.kind === 'regular'
+                                ? `regular-${row.studentId}`
+                                : `makeup-${row.attendanceId}`
+                        }
                         row={row}
                     />
                 ))}

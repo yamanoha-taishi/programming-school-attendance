@@ -1,7 +1,9 @@
+import { router } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import StatusBadge from '@/components/attendances/status-badge';
 import { Button } from '@/components/ui/button';
+import { update } from '@/routes/admin/attendances';
 import type { AttendanceRowData } from '@/types/attendance';
 
 // 補講の種類ごとの色（淡い背景＋同系統の文字色）
@@ -60,6 +62,22 @@ function RowBadges({ row }: { row: AttendanceRowData }) {
 export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
     const [isOpen, setIsOpen] = useState(!isRecorded(row));
 
+    // 出席を記録する（通常の行のみ）
+    function recordPresent() {
+        if (row.kind !== 'regular') {
+            return;
+        }
+
+        router.patch(
+            update({ lesson: row.lessonId, student: row.studentId }).url,
+            { status: '出席' },
+            {
+                preserveScroll: true, // 画面の一番上に戻らないようにする
+                onSuccess: () => setIsOpen(false), // 保存できたら行を折りたたむ
+            },
+        );
+    }
+
     // 折りたたみ：名前とバッジだけの1行。タップすると開く
     if (!isOpen) {
         return (
@@ -101,7 +119,12 @@ export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
             </div>
 
             <div className="mt-2 flex gap-1.5">
-                <Button type="button" variant="outline" className="flex-1">
+                <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={recordPresent}
+                >
                     出席
                 </Button>
                 <Button type="button" variant="outline" className="flex-1">

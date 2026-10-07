@@ -6,10 +6,13 @@ use App\Enums\AttendanceDisplayStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Lesson;
+use App\Models\Staff;
 use App\Models\Student;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -62,9 +65,36 @@ class AttendanceController extends Controller
         ]);
     }
 
-    public function update(Request $request, Lesson $lesson, Student $student): void
+    public function update(Request $request, Lesson $lesson, Student $student): RedirectResponse
     {
-        //
+        $request->validate([
+            'status' => ['required', Rule::in(['出席'])],
+        ]);
+
+        // この授業回が、生徒の所属する授業実施単位・授業クラスのものでなければ受け付けない
+        abort_unless(
+            $student->section_id === $lesson->section_id
+                && $student->school_class_id === $lesson->lessonPlan->school_class_id,
+            404,
+        );
+
+        /** @var Staff $staff */
+        $staff = $request->user('staff');
+
+        // この生徒・この授業回のレコードがあれば更新、なければ作成
+        Attendance::updateOrCreate(
+            ['student_id' => $student->id, 'lesson_id' => $lesson->id],
+            [
+                'status' => '出席',
+                // 欠席から出席に直した場合に備えて、補講予定を消す
+                'makeup_type' => null,
+                'makeup_lesson_id' => null,
+                'makeup_status' => null,
+                'staff_id' => $staff->id,
+            ],
+        );
+
+        return back();
     }
 
     public function updateMakeup(Request $request, Attendance $attendance): void
