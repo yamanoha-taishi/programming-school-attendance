@@ -18,7 +18,7 @@ use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /**
- * 出席記録・一覧画面で、通常の行の出欠を記録する（admin.attendances.update）テスト。
+ * 出席記録・一覧画面で、通常の行の出欠（出席、または欠席と補講予定）を記録する（admin.attendances.update）テスト。
  * 仕様はルーティング設計のupdateの備考を参照。
  */
 class AttendanceUpdateTest extends TestCase
@@ -155,6 +155,230 @@ class AttendanceUpdateTest extends TestCase
         );
 
         $response->assertRedirect(route('login'));
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    // ------------------------------------------------------------
+    // 欠席と補講予定
+    // ------------------------------------------------------------
+
+    public function test_absent_with_undecided_makeup_is_recorded()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1');
+
+        // 未定のときは補講先を使わないので、送られてきても保存しない
+        $otherLesson = $this->createLesson('2026-10-10', 'B', 'B1');
+        $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '未定',
+            'makeup_lesson_id' => $otherLesson->id,
+        ]);
+
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'status' => '欠席',
+            'makeup_type' => '未定',
+            'makeup_lesson_id' => null,
+            'staff_id' => $this->staff->id,
+        ]);
+    }
+
+    public function test_absent_with_no_makeup_is_recorded()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1');
+
+        $this->patchAttendance($lesson, $student, ['status' => '欠席', 'makeup_type' => '補講なし']);
+
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'status' => '欠席',
+            'makeup_type' => '補講なし',
+            'makeup_lesson_id' => null,
+        ]);
+    }
+
+    public function test_absent_with_transfer_to_another_section_is_recorded()
+    {
+        // 土曜B（B1）を休んで、同じB1クラスの水曜Bの回に振替で行く
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $makeupLesson = $this->createLesson('2026-10-07', 'B', 'B1', '水');
+        $student = $this->createStudent('B', 'B1');
+
+        $response = $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $makeupLesson->id,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'status' => '欠席',
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $makeupLesson->id,
+        ]);
+    }
+
+    public function test_absent_with_catch_up_in_another_section_is_recorded()
+    {
+        // 特別な調整：土曜の生徒が、同じクラスの木曜（ここでは水曜B）の回で30分前補講を受ける。曜日は問わない
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $makeupLesson = $this->createLesson('2026-10-14', 'B', 'B1', '水');
+        $student = $this->createStudent('B', 'B1');
+
+        $response = $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '30分前補講',
+            'makeup_lesson_id' => $makeupLesson->id,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'makeup_type' => '30分前補講',
+            'makeup_lesson_id' => $makeupLesson->id,
+        ]);
+    }
+
+    public function test_makeup_status_is_cleared_when_makeup_plan_is_changed()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $oldMakeupLesson = $this->createLesson('2026-10-07', 'B', 'B1', '水');
+        $newMakeupLesson = $this->createLesson('2026-10-10', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1');
+
+        // 前の補講先で「出席」まで記録されていた
+        Attendance::create([
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'status' => '欠席',
+            'is_late' => false,
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $oldMakeupLesson->id,
+            'makeup_status' => '出席',
+        ]);
+
+        $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '30分前補講',
+            'makeup_lesson_id' => $newMakeupLesson->id,
+        ]);
+
+        // 補講予定を決め直したので、補講先での出欠は未記録に戻る（「振替済み」のまま残らない）
+        $this->assertDatabaseCount('attendances', 1);
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'makeup_type' => '30分前補講',
+            'makeup_lesson_id' => $newMakeupLesson->id,
+            'makeup_status' => null,
+        ]);
+    }
+
+    public function test_makeup_fields_are_ignored_when_present_is_recorded()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $otherLesson = $this->createLesson('2026-10-10', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1');
+
+        $this->patchAttendance($lesson, $student, [
+            'status' => '出席',
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $otherLesson->id,
+        ]);
+
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'status' => '出席',
+            'makeup_type' => null,
+            'makeup_lesson_id' => null,
+        ]);
+    }
+
+    public function test_absent_without_makeup_type_is_rejected()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1');
+
+        $response = $this->patchAttendance($lesson, $student, ['status' => '欠席']);
+
+        $response->assertSessionHasErrors('makeup_type');
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_invalid_makeup_type_is_rejected()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1');
+
+        $response = $this->patchAttendance($lesson, $student, ['status' => '欠席', 'makeup_type' => '補講']);
+
+        $response->assertSessionHasErrors('makeup_type');
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_transfer_without_makeup_lesson_is_rejected()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1');
+
+        $response = $this->patchAttendance($lesson, $student, ['status' => '欠席', 'makeup_type' => '振替']);
+
+        $response->assertSessionHasErrors('makeup_lesson_id');
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_nonexistent_makeup_lesson_is_rejected()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1');
+
+        $response = $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => 99999,
+        ]);
+
+        $response->assertSessionHasErrors('makeup_lesson_id');
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_makeup_lesson_of_another_class_is_rejected()
+    {
+        // B1クラスの生徒の補講先に、同じ土曜BでもB2クラスの授業回は選べない
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $otherClassLesson = $this->createLesson('2026-10-10', 'B', 'B2');
+        $student = $this->createStudent('B', 'B1');
+
+        $response = $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $otherClassLesson->id,
+        ]);
+
+        $response->assertSessionHasErrors('makeup_lesson_id');
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_absent_lesson_itself_as_makeup_lesson_is_rejected()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1');
+
+        $response = $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '30分前補講',
+            'makeup_lesson_id' => $lesson->id,
+        ]);
+
+        $response->assertSessionHasErrors('makeup_lesson_id');
         $this->assertDatabaseCount('attendances', 0);
     }
 

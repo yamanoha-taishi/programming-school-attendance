@@ -68,8 +68,10 @@ class AttendanceController extends Controller
 
     public function update(Request $request, Lesson $lesson, Student $student): RedirectResponse
     {
-        $request->validate([
-            'status' => ['required', Rule::in(['出席'])],
+        $validated = $request->validate([
+            'status' => ['required', Rule::in(['出席', '欠席'])],
+            'makeup_type' => ['required_if:status,欠席', 'nullable', Rule::in(['振替', '30分前補講', '未定', '補講なし'])],
+            'makeup_lesson_id' => ['required_if:makeup_type,振替,30分前補講', 'nullable', 'integer', 'exists:lessons,id'],
         ]);
 
         // この授業回が、生徒の所属する授業実施単位・授業クラスのものでなければ受け付けない
@@ -79,6 +81,18 @@ class AttendanceController extends Controller
             404,
         );
 
+        $isAbsent = $validated['status'] === '欠席';
+        $makeupType = $isAbsent ? $validated['makeup_type'] : null;
+
+        // 振替・30分前補講のときだけ、補講先の授業回を保存する
+        $makeupLessonId = in_array($makeupType, ['振替', '30分前補講'], true)
+            ? $validated['makeup_lesson_id']
+            : null;
+
+        if ($makeupLessonId !== null) {
+            $this->ensureValidMakeupLesson($lesson, (int) $makeupLessonId);
+        }
+
         /** @var Staff $staff */
         $staff = $request->user('staff');
 
@@ -86,10 +100,11 @@ class AttendanceController extends Controller
         Attendance::updateOrCreate(
             ['student_id' => $student->id, 'lesson_id' => $lesson->id],
             [
-                'status' => '出席',
-                // 欠席から出席に直した場合に備えて、補講予定を消す
-                'makeup_type' => null,
-                'makeup_lesson_id' => null,
+                'status' => $validated['status'],
+                // 出席ならnull、欠席なら選んだ補講予定
+                'makeup_type' => $makeupType,
+                'makeup_lesson_id' => $makeupLessonId,
+                // 補講予定を決め直したので、補講先での出欠は未記録に戻す
                 'makeup_status' => null,
                 'staff_id' => $staff->id,
             ],
@@ -115,6 +130,22 @@ class AttendanceController extends Controller
         $attendance->update(['makeup_status' => $validated['makeup_status']]);
 
         return back();
+    }
+
+    /**
+     * 補講先の授業回が、休んだ授業回と同じ授業クラスのもので、休んだ授業回そのものでないか確認する。
+     * 曜日（授業実施単位）は問わない。特別な調整（別の曜日の回の内容を入れ替えて補講するなど）も登録できるようにするため。
+     */
+    private function ensureValidMakeupLesson(Lesson $lesson, int $makeupLessonId): void
+    {
+        $makeupLesson = Lesson::with('lessonPlan')->findOrFail($makeupLessonId);
+
+        if ($makeupLesson->id === $lesson->id
+            || $makeupLesson->lessonPlan->school_class_id !== $lesson->lessonPlan->school_class_id) {
+            throw ValidationException::withMessages([
+                'makeup_lesson_id' => '補講先には、同じ授業クラスの別の授業回を選んでください。',
+            ]);
+        }
     }
 
     /**
