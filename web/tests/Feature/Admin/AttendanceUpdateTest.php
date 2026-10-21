@@ -350,17 +350,55 @@ class AttendanceUpdateTest extends TestCase
         $this->assertDatabaseCount('attendances', 0);
     }
 
-    public function test_makeup_lesson_of_another_class_is_rejected()
+    public function test_basic_makeup_lesson_of_another_class_is_rejected()
     {
-        // B1クラスの生徒の補講先に、同じ土曜BでもB2クラスの授業回は選べない
+        // 基礎クラス1組（A1）の生徒の補講先に、基礎クラス2組（A2）の授業回は選べない
+        $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $otherClassLesson = $this->createLesson('2026-10-10', 'A2', 'A2');
+        $student = $this->createStudent('A1', 'A1');
+
+        $response = $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $otherClassLesson->id,
+        ]);
+
+        $response->assertSessionHasErrors('makeup_lesson_id');
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_advanced_makeup_lesson_of_another_class_is_recorded()
+    {
+        // 応用クラスは、どの組の回でも補講を受けられる。B1クラスの生徒が、B3クラスの授業回しかない水曜Bの回に振替で行く
         $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
-        $otherClassLesson = $this->createLesson('2026-10-10', 'B', 'B2');
+        $otherClassLesson = $this->createLesson('2026-10-07', 'B', 'B3', '水');
         $student = $this->createStudent('B', 'B1');
 
         $response = $this->patchAttendance($lesson, $student, [
             'status' => '欠席',
             'makeup_type' => '振替',
             'makeup_lesson_id' => $otherClassLesson->id,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'makeup_lesson_id' => $otherClassLesson->id,
+        ]);
+    }
+
+    public function test_advanced_makeup_lesson_in_the_same_session_is_rejected()
+    {
+        // 休んだ回と同じ日・同じ時間に一緒に授業をしているB2クラスの授業回は、補講先に選べない
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $sameSessionLesson = $this->createLesson('2026-10-03', 'B', 'B2');
+        $student = $this->createStudent('B', 'B1');
+
+        $response = $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $sameSessionLesson->id,
         ]);
 
         $response->assertSessionHasErrors('makeup_lesson_id');

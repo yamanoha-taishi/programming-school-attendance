@@ -40,4 +40,16 @@ export type AttendanceBlockData = {
     endTime: string;
     summary: AttendanceSummary;
     rows: AttendanceRowData[];
+    makeupCandidates: MakeupCandidate[]; // このブロックの生徒が欠席したときの補講先の候補
+};
+
+// 補講先（振替・30分前補講）の候補の授業回
+export type MakeupCandidate = {
+    lessonId: number;
+    date: string;
+    weekday: string;
+    startTime: string;
+    endTime: string;
+    title: string; // 表示名（基礎クラスは「基礎クラス1組」、応用クラスは組を付けず「応用クラス」）
+    sameContent: boolean; // 休んだ授業回と同じ内容か（基礎クラスのみ。振替の候補として探しやすくするため。応用クラスは常にfalse）
 };

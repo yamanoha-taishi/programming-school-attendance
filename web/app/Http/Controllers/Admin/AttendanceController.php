@@ -6,6 +6,7 @@ use App\Enums\AttendanceDisplayStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Lesson;
+use App\Models\Section;
 use App\Models\Staff;
 use App\Models\Student;
 use Illuminate\Http\RedirectResponse;
@@ -48,10 +49,12 @@ class AttendanceController extends Controller
             ->whereHas('student')
             ->get();
 
+        $makeupCandidates = $this->makeupCandidates($lessons, $date);
+
         $blocks = $lessons
             ->sortBy(fn (Lesson $lesson) => $lesson->section->start_time)
             ->groupBy('section_id')
-            ->map(fn (Collection $sectionLessons) => $this->buildBlock($sectionLessons, $students, $attendances, $makeupAttendances))
+            ->map(fn (Collection $sectionLessons) => $this->buildBlock($sectionLessons, $students, $attendances, $makeupAttendances, $makeupCandidates))
             ->values();
 
         return Inertia::render('admin/attendances/index', [
@@ -133,17 +136,23 @@ class AttendanceController extends Controller
     }
 
     /**
-     * 補講先の授業回が、休んだ授業回と同じ授業クラスのもので、休んだ授業回そのものでないか確認する。
-     * 曜日（授業実施単位）は問わない。特別な調整（別の曜日の回の内容を入れ替えて補講するなど）も登録できるようにするため。
+     * 補講先の授業回として選べるか確認する。候補の出し方（makeupCandidates）と同じルールで判定する。
+     * - 基礎クラス：同じ授業クラスの、休んだ授業回とは別の授業回
+     * - 応用クラス：応用クラスの回で、休んだ回と同じ日・同じ時間の回ではないもの（組は問わない）
+     * どちらも曜日（授業実施単位）は問わない。特別な調整（別の曜日の回の内容を入れ替えて補講するなど）も登録できるようにするため。
      */
     private function ensureValidMakeupLesson(Lesson $lesson, int $makeupLessonId): void
     {
-        $makeupLesson = Lesson::with('lessonPlan')->findOrFail($makeupLessonId);
+        $makeupLesson = Lesson::with(['section', 'lessonPlan'])->findOrFail($makeupLessonId);
 
-        if ($makeupLesson->id === $lesson->id
-            || $makeupLesson->lessonPlan->school_class_id !== $lesson->lessonPlan->school_class_id) {
+        $isValid = $lesson->section->isAdvanced()
+            ? $makeupLesson->section->isAdvanced() && ! $this->isSameSession($makeupLesson, $lesson)
+            : $makeupLesson->id !== $lesson->id
+                && $makeupLesson->lessonPlan->school_class_id === $lesson->lessonPlan->school_class_id;
+
+        if (! $isValid) {
             throw ValidationException::withMessages([
-                'makeup_lesson_id' => '補講先には、同じ授業クラスの別の授業回を選んでください。',
+                'makeup_lesson_id' => '補講先に選べない授業回です。',
             ]);
         }
     }
@@ -180,15 +189,135 @@ class AttendanceController extends Controller
     }
 
     /**
+     * その日のブロック（授業実施単位）ごとの、補講先（振替・30分前補講）の候補。キーは授業実施単位のID。
+     * ブロックの生徒がその日の授業を休んだときの候補で、同じブロックの生徒はみんな同じ候補になる。
+     * - 基礎クラスの授業実施単位は1つの授業クラスだけが使うため、その日の授業回は1件で、その授業回の候補になる
+     * - 応用クラスはB1〜B6の授業回があっても、どの組の回でも補講を受けられるため、候補は組によらず同じになる
+     * 休んだ日の1週間前〜4週間後の授業回から、基礎クラス・応用クラスでそれぞれ次のように選ぶ（曜日は問わない）。
+     * - 基礎クラス：同じ授業クラスの授業回（休んだ授業回そのものは除く）
+     * - 応用クラス：応用クラス（授業実施単位「B」）の回なら、どの組の回でもよい（休んだ回と同じ日・同じ時間の回は除く）
+     *
+     * @param  Collection<int, Lesson>  $lessons
+     * @return Collection<int, Collection<int, array<string, mixed>>>
+     */
+    private function makeupCandidates(Collection $lessons, string $date): Collection
+    {
+        $from = Carbon::parse($date)->subWeek()->toDateString();
+        $until = Carbon::parse($date)->addWeeks(4)->toDateString();
+
+        // 期間内の授業回のうち、その日の授業回と同じクラスのものと、応用クラスのものをまとめて取ってくる（クエリ1回）
+        $candidates = Lesson::with(['section', 'lessonPlan.schoolClass'])
+            ->where(fn ($query) => $query
+                ->whereHas('lessonPlan', fn ($query) => $query->whereIn(
+                    'school_class_id',
+                    $lessons->pluck('lessonPlan.school_class_id')->unique(),
+                ))
+                ->orWhereHas('section', fn ($query) => $query->where('name', Section::ADVANCED_NAME)))
+            ->whereDate('date', '>=', $from)
+            ->whereDate('date', '<=', $until)
+            ->get()
+            ->sortBy([
+                fn (Lesson $a, Lesson $b) => $a->date <=> $b->date,
+                fn (Lesson $a, Lesson $b) => $a->section->start_time <=> $b->section->start_time,
+                fn (Lesson $a, Lesson $b) => $a->lessonPlan->schoolClass->code <=> $b->lessonPlan->schoolClass->code,
+            ]);
+
+        return $lessons
+            ->groupBy('section_id')
+            ->map(function (Collection $sectionLessons) use ($candidates) {
+                $lesson = $sectionLessons->firstOrFail();
+
+                return $lesson->section->isAdvanced()
+                    ? $this->advancedMakeupCandidates($lesson, $candidates)
+                    : $this->basicMakeupCandidates($lesson, $candidates);
+            });
+    }
+
+    /**
+     * 基礎クラスの補講先の候補。同じ授業クラスの授業回から、休んだ授業回そのものを除いたもの。
+     * 基礎クラスはその回でやる授業内容が決まっているため、振替で探しやすいよう、同じ内容の授業回にsameContentで印を付ける。
+     *
+     * @param  Collection<int, Lesson>  $candidates  期間内の授業回（日付・開始時刻順）
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function basicMakeupCandidates(Lesson $lesson, Collection $candidates): Collection
+    {
+        return $candidates
+            ->filter(fn (Lesson $candidate) => $candidate->id !== $lesson->id
+                && $candidate->lessonPlan->school_class_id === $lesson->lessonPlan->school_class_id)
+            ->map(fn (Lesson $candidate) => $this->makeupCandidateItem(
+                $candidate,
+                $candidate->lessonPlan->schoolClass->display_name,
+                $candidate->lesson_plan_id === $lesson->lesson_plan_id,
+            ))
+            ->values();
+    }
+
+    /**
+     * 応用クラスの補講先の候補。応用クラスの回（同じ日・同じ時間の授業回をまとめたもの）から、休んだ回を除いたもの。
+     * 応用クラス（B1〜B6）は同じ時間に一緒に授業をし、生徒が自分のペースで進めるため、どの組の回でも補講を受けられる。
+     * 回でやる授業内容が決まっていないので、同じ内容の印（sameContent）は付けない。
+     * 補講先として保存する授業回は、その回の授業回のどれか1つでよい（一覧画面では、来る側の行はその回のブロックに表示される）。
+     *
+     * @param  Collection<int, Lesson>  $candidates  期間内の授業回（日付・開始時刻・組の順）
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function advancedMakeupCandidates(Lesson $lesson, Collection $candidates): Collection
+    {
+        return $candidates
+            ->filter(fn (Lesson $candidate) => $candidate->section->isAdvanced()
+                && ! $this->isSameSession($candidate, $lesson))
+            // 同じ日・同じ授業実施単位の授業回（B1〜B6が一緒に授業をする回）を1つにまとめる
+            ->groupBy(fn (Lesson $candidate) => "{$candidate->date->toDateString()}-{$candidate->section_id}")
+            ->map(function (Collection $sessionLessons) {
+                $candidate = $sessionLessons->firstOrFail();
+                $displayName = $candidate->lessonPlan->schoolClass->display_name;
+
+                // 組を付けず「応用クラス」と表示する（一覧画面のブロックの見出しと同じ）
+                $title = preg_replace('/\d+組$/u', '', $displayName) ?? $displayName;
+
+                return $this->makeupCandidateItem($candidate, $title, false);
+            })
+            ->values();
+    }
+
+    /**
+     * 補講先の候補1件分のデータ。
+     *
+     * @return array<string, mixed>
+     */
+    private function makeupCandidateItem(Lesson $candidate, string $title, bool $sameContent): array
+    {
+        return [
+            'lessonId' => $candidate->id,
+            'date' => $candidate->date->toDateString(),
+            'weekday' => $candidate->section->weekday,
+            'startTime' => substr($candidate->section->start_time, 0, 5),
+            'endTime' => substr($candidate->section->end_time, 0, 5),
+            'title' => $title,
+            'sameContent' => $sameContent,
+        ];
+    }
+
+    /**
+     * 2つの授業回が、同じ日・同じ授業実施単位の回（応用クラスなら、B1〜B6が一緒に授業をする同じ回）か。
+     */
+    private function isSameSession(Lesson $a, Lesson $b): bool
+    {
+        return $a->section_id === $b->section_id && $a->date->isSameDay($b->date);
+    }
+
+    /**
      * 1つの授業実施単位の授業回（応用クラスなら最大6件）から、画面の1ブロック分のデータを作る。
      *
      * @param  Collection<int, Lesson>  $sectionLessons  このブロックの授業回
      * @param  Collection<int, Student>  $students  その日の全ブロックの生徒
      * @param  Collection<string, Attendance>  $attendances  その日の出席記録（キーは「生徒ID-授業回ID」）
      * @param  Collection<int, Attendance>  $makeupAttendances  その日の全ブロックに補講で来る欠席記録
+     * @param  Collection<int, Collection<int, array<string, mixed>>>  $makeupCandidates  ブロックごとの補講先の候補（キーは授業実施単位のID）
      * @return array<string, mixed>
      */
-    private function buildBlock(Collection $sectionLessons, Collection $students, Collection $attendances, Collection $makeupAttendances): array
+    private function buildBlock(Collection $sectionLessons, Collection $students, Collection $attendances, Collection $makeupAttendances, Collection $makeupCandidates): array
     {
         $section = $sectionLessons->firstOrFail()->section;
 
@@ -219,6 +348,8 @@ class AttendanceController extends Controller
             'startTime' => substr($section->start_time, 0, 5),
             'endTime' => substr($section->end_time, 0, 5),
             'rows' => $rows,
+            // このブロックの生徒が欠席したときの補講先の候補
+            'makeupCandidates' => $makeupCandidates->get($section->id, collect()),
             'summary' => $this->summarize($rows),
         ];
     }

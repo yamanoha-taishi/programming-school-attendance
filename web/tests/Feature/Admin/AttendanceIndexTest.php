@@ -20,7 +20,7 @@ use Tests\TestCase;
 
 /**
  * 出席記録・一覧画面（admin.attendances.index）のテスト。
- * 表示する日付の決め方と、日付の切り替えに使う授業日の一覧、授業実施単位ごとのブロック・生徒の行の組み立て、出欠サマリーを確認する。
+ * 表示する日付の決め方と、日付の切り替えに使う授業日の一覧、補講先の候補、授業実施単位ごとのブロック・生徒の行の組み立て、出欠サマリーを確認する。
  * 仕様はルーティング設計のindexの備考、要件定義書5.4を参照。
  */
 class AttendanceIndexTest extends TestCase
@@ -154,6 +154,86 @@ class AttendanceIndexTest extends TestCase
 
         $response->assertInertia(fn ($page) => $page
             ->where('lessonDates', [])
+        );
+    }
+
+    // ------------------------------------------------------------
+    // 補講先（振替・30分前補講）の候補
+    // ------------------------------------------------------------
+
+    public function test_basic_makeup_candidates_are_lessons_of_the_same_class_within_the_period()
+    {
+        // 10/3（土）の土曜A1（基礎クラス1組）を休んだ場合の候補を確認する。
+        // createLesson()は授業実施単位ごとに第1回から順に授業内容を割り当てるため、
+        // 土曜A1の10/3と火曜A1の9/29はどちらも第1回（同じ内容）、それ以外の土曜A1の回は別の内容になる
+        $this->createLesson('2026-10-03', 'A1', 'A1');
+        $this->createLesson('2026-09-26', 'A1', 'A1'); // 1週間前（期間の初日）
+        $this->createLesson('2026-09-19', 'A1', 'A1'); // 期間より前
+        $tuesday = $this->createLesson('2026-09-29', 'A1', 'A1', '火'); // 別の曜日・同じ内容
+        $this->createLesson('2026-10-31', 'A1', 'A1'); // 4週間後（期間の最終日）
+        $this->createLesson('2026-11-07', 'A1', 'A1'); // 期間より後
+        $this->createLesson('2026-10-10', 'A2', 'A2'); // 別の授業クラス
+
+        $response = $this->getAttendances('2026-10-03');
+
+        // 休んだ授業回そのもの・期間外の回・別のクラスの回は含まず、日付順に並ぶ
+        $response->assertInertia(fn ($page) => $page
+            ->has('blocks.0.makeupCandidates', 3)
+            ->where('blocks.0.makeupCandidates.0.date', '2026-09-26')
+            ->where('blocks.0.makeupCandidates.0.sameContent', false)
+            ->where('blocks.0.makeupCandidates.1.lessonId', $tuesday->id)
+            ->where('blocks.0.makeupCandidates.1.date', '2026-09-29')
+            ->where('blocks.0.makeupCandidates.1.weekday', '火')
+            ->where('blocks.0.makeupCandidates.1.title', '基礎クラス1組')
+            ->where('blocks.0.makeupCandidates.1.sameContent', true)
+            ->where('blocks.0.makeupCandidates.2.date', '2026-10-31')
+        );
+    }
+
+    public function test_advanced_makeup_candidates_are_sessions_of_any_class()
+    {
+        // 10/3（土）の土曜BでB1クラスの生徒が休んだ場合。応用クラスは、どの組の回でも補講を受けられる
+        $this->createLesson('2026-10-03', 'B', 'B1');
+        $this->createLesson('2026-10-03', 'B', 'B2'); // 休んだ回と同じ日・同じ時間（一緒に授業をする回）
+        $wednesdayB3 = $this->createLesson('2026-10-07', 'B', 'B3', '水'); // その回はB3クラスの授業回しかない
+        $nextB1 = $this->createLesson('2026-10-10', 'B', 'B1');
+        $this->createLesson('2026-10-10', 'B', 'B2'); // 10/10の土曜Bは、B1とB2が一緒に授業をする
+        $this->createLesson('2026-11-07', 'B', 'B1'); // 期間より後
+
+        $response = $this->getAttendances('2026-10-03');
+
+        // 10/3の土曜BにはB1・B2の授業回があるが、ブロックの候補は1つ。
+        // 同じ日・同じ時間の授業回は1件にまとめ、組を付けず「応用クラス」と表示する。同じ内容の印は付けない
+        $response->assertInertia(fn ($page) => $page
+            ->has('blocks.0.makeupCandidates', 2)
+            ->where('blocks.0.makeupCandidates.0.lessonId', $wednesdayB3->id)
+            ->where('blocks.0.makeupCandidates.0.date', '2026-10-07')
+            ->where('blocks.0.makeupCandidates.0.title', '応用クラス')
+            ->where('blocks.0.makeupCandidates.0.sameContent', false)
+            ->where('blocks.0.makeupCandidates.1.lessonId', $nextB1->id)
+            ->where('blocks.0.makeupCandidates.1.date', '2026-10-10')
+            ->where('blocks.0.makeupCandidates.1.title', '応用クラス')
+            ->where('blocks.0.makeupCandidates.1.sameContent', false)
+        );
+    }
+
+    public function test_each_block_has_its_own_makeup_candidates()
+    {
+        // 10/3に土曜A1（10:00）と土曜B（14:30）の2ブロックがあり、それぞれのブロックの候補になる
+        $this->createLesson('2026-10-03', 'A1', 'A1');
+        $this->createLesson('2026-10-03', 'B', 'B1');
+        $nextA1 = $this->createLesson('2026-10-10', 'A1', 'A1');
+        $nextB = $this->createLesson('2026-10-10', 'B', 'B1');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page
+            ->has('blocks.0.makeupCandidates', 1)
+            ->where('blocks.0.makeupCandidates.0.lessonId', $nextA1->id)
+            ->where('blocks.0.makeupCandidates.0.title', '基礎クラス1組')
+            ->has('blocks.1.makeupCandidates', 1)
+            ->where('blocks.1.makeupCandidates.0.lessonId', $nextB->id)
+            ->where('blocks.1.makeupCandidates.0.title', '応用クラス')
         );
     }
 
