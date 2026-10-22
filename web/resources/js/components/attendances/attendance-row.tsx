@@ -3,6 +3,7 @@ import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import StatusBadge from '@/components/attendances/status-badge';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { makeup, update } from '@/routes/admin/attendances';
 import type { AttendanceRowData } from '@/types/attendance';
 
@@ -62,11 +63,18 @@ function RowBadges({ row }: { row: AttendanceRowData }) {
 export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
     const [isOpen, setIsOpen] = useState(!isRecorded(row));
 
+    // ［欠席］を押して、補講予定の選択欄を開いているか（通常の行のみ）
+    const [isChoosingMakeup, setIsChoosingMakeup] = useState(false);
+
     // 送信して、保存できたら行を折りたたむ
     function send(url: string, data: Record<string, string>) {
         router.patch(url, data, {
             preserveScroll: true, // 画面の一番上に戻らないようにする
-            onSuccess: () => setIsOpen(false), // 保存できたら行を折りたたむ
+            onSuccess: () => {
+                // 保存できたら行を折りたたみ、補講予定の選択欄も閉じる
+                setIsOpen(false);
+                setIsChoosingMakeup(false);
+            },
         });
     }
 
@@ -81,11 +89,27 @@ export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
         }
     }
 
-    // ［欠席］：来る側の行は補講先での欠席を記録する（通常の行はG-3で作る）
+    // ［欠席］：来る側の行は補講先での欠席を記録する。通常の行は、補講予定の選択欄を開く（まだ送らない）
     function handleAbsent() {
         if (row.kind === 'makeup') {
             send(makeup(row.attendanceId).url, { makeup_status: '欠席' });
+
+            return;
         }
+
+        setIsChoosingMakeup(true);
+    }
+
+    // ［未定］［補講なし］：補講先の授業回を選ばないので、その場で欠席を記録する
+    function recordAbsent(makeupType: '未定' | '補講なし') {
+        if (row.kind !== 'regular') {
+            return;
+        }
+
+        send(update({ lesson: row.lessonId, student: row.studentId }).url, {
+            status: '欠席',
+            makeup_type: makeupType,
+        });
     }
 
     // 折りたたみ：名前とバッジだけの1行。タップすると開く
@@ -140,12 +164,47 @@ export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
                 <Button
                     type="button"
                     variant="outline"
-                    className="flex-1"
+                    className={cn(
+                        'flex-1',
+                        isChoosingMakeup &&
+                            'border-status-absent bg-status-absent-bg text-status-absent-text',
+                    )}
                     onClick={handleAbsent}
                 >
                     欠席
                 </Button>
             </div>
+            {/* 補講予定の選択欄：［欠席］を押したときだけ開く */}
+            {isChoosingMakeup && (
+                <div className="mt-2.5 border-t border-dashed border-border pt-2">
+                    <p className="mb-1.5 text-xs text-muted-foreground">
+                        補講予定を選択
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                        {/* 振替・30分前補講は G-3c-2 で、授業回を選ぶモーダルを開くようにする */}
+                        <Button type="button" variant="outline" disabled>
+                            振替
+                        </Button>
+                        <Button type="button" variant="outline" disabled>
+                            30分前補講
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => recordAbsent('未定')}
+                        >
+                            未定
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => recordAbsent('補講なし')}
+                        >
+                            補講なし
+                        </Button>
+                    </div>
+                </div>
+            )}
         </li>
     );
 }
