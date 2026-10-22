@@ -20,7 +20,7 @@ use Tests\TestCase;
 
 /**
  * 出席記録・一覧画面（admin.attendances.index）のテスト。
- * 表示する日付の決め方と、日付の切り替えに使う授業日の一覧、補講先の候補、授業実施単位ごとのブロック・生徒の行の組み立て、出欠サマリーを確認する。
+ * 表示する日付の決め方と、日付の切り替えに使う授業日の一覧、補講先の候補、授業計画上の第何回か、授業実施単位ごとのブロック・生徒の行の組み立て、出欠サマリーを確認する。
  * 仕様はルーティング設計のindexの備考、要件定義書5.4を参照。
  */
 class AttendanceIndexTest extends TestCase
@@ -235,6 +235,46 @@ class AttendanceIndexTest extends TestCase
             ->where('blocks.1.makeupCandidates.0.lessonId', $nextB->id)
             ->where('blocks.1.makeupCandidates.0.title', '応用クラス')
         );
+    }
+
+    // ------------------------------------------------------------
+    // 授業計画上の第何回か
+    // ------------------------------------------------------------
+
+    public function test_lesson_no_of_the_day_is_shown()
+    {
+        // createLesson()は授業実施単位ごとに第1回から割り当てる。土曜A1・土曜B（B1・B2）の10/3はどれも第1回
+        $this->createLesson('2026-10-03', 'A1', 'A1');
+        $this->createLesson('2026-10-03', 'B', 'B1');
+        $this->createLesson('2026-10-03', 'B', 'B2');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        // 同じ回数は1つにまとまる
+        $response->assertInertia(fn ($page) => $page->where('lessonNos', [1]));
+    }
+
+    public function test_lesson_nos_are_all_shown_when_they_differ_between_sections()
+    {
+        // 土曜A1だけ先に9/26の授業回を作り、10/3を第2回にする（土曜Bの10/3は第1回のまま）。
+        // 休校は週単位で決まるためふつうは起きないが、授業実施単位ごとの休校日を登録した場合などにずれうる
+        $this->createLesson('2026-09-26', 'A1', 'A1');
+        $this->createLesson('2026-10-03', 'A1', 'A1');
+        $this->createLesson('2026-10-03', 'B', 'B1');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        // 小さい順にすべて並ぶ
+        $response->assertInertia(fn ($page) => $page->where('lessonNos', [1, 2]));
+    }
+
+    public function test_lesson_nos_are_empty_on_a_day_without_lessons()
+    {
+        $this->createLesson('2026-10-03', 'A1', 'A1');
+
+        $response = $this->getAttendances('2026-10-04');
+
+        $response->assertInertia(fn ($page) => $page->where('lessonNos', []));
     }
 
     // ------------------------------------------------------------

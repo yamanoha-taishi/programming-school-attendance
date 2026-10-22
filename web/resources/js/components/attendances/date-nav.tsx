@@ -22,9 +22,11 @@ function formatDateLabel(date: string): string {
 export default function DateNav({
     date,
     lessonDates,
+    lessonNos,
 }: {
     date: string;
     lessonDates: string[];
+    lessonNos: number[]; // 授業計画上の第何回か（ふつうは1つ）
 }) {
     // 前の授業日：今の日付より古い日付のうち、いちばん新しいもの
     const prevDate = lessonDates.find((d) => d < date);
@@ -36,6 +38,14 @@ export default function DateNav({
 
     return (
         <div className="grid grid-cols-[1fr_auto_1fr] items-center">
+            {/* 左：授業計画上の第何回か（授業がない日は出さない）。
+                押せるボタンと区別するため、枠や背景は付けず、左に色の線を付けて「意味のある情報」として目立たせる */}
+            {lessonNos.length > 0 && (
+                <div className="border-l-3 border-primary pl-1.5 text-sm leading-tight font-bold">
+                    第{lessonNos.join('・')}回
+                </div>
+            )}
+
             <div className="col-start-2 flex items-center gap-2.5">
                 {prevDate ? (
                     <Link

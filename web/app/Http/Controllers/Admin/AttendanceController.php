@@ -57,9 +57,18 @@ class AttendanceController extends Controller
             ->map(fn (Collection $sectionLessons) => $this->buildBlock($sectionLessons, $students, $attendances, $makeupAttendances, $makeupCandidates))
             ->values();
 
+        // 授業計画上の第何回か。休校は週単位で決まるため、その日の授業回はふつう同じ回数になる。
+        // 万一ずれていた場合（授業実施単位ごとの休校日を登録した場合など）に備えて、複数あれば小さい順にすべて渡す
+        $lessonNos = $lessons
+            ->map(fn (Lesson $lesson) => $lesson->lessonPlan->no)
+            ->unique()
+            ->sort()
+            ->values();
+
         return Inertia::render('admin/attendances/index', [
             'date' => $date,
             'lessonDates' => $this->lessonDates(),
+            'lessonNos' => $lessonNos,
             'blocks' => $blocks,
             'daySummary' => [
                 'present' => $blocks->sum('summary.present'),
