@@ -4,10 +4,14 @@ import { useState } from 'react';
 import MakeupLessonSheet from '@/components/attendances/makeup-lesson-sheet';
 import StatusBadge from '@/components/attendances/status-badge';
 import { Button } from '@/components/ui/button';
-import { formatMonthDay } from '@/lib/date-format';
+import { formatDateLabel, formatMonthDay } from '@/lib/date-format';
 import { cn } from '@/lib/utils';
 import { makeup, update } from '@/routes/admin/attendances';
-import type { AttendanceRowData, MakeupCandidate } from '@/types/attendance';
+import type {
+    AttendanceRowData,
+    MakeupCandidate,
+    RegularRowData,
+} from '@/types/attendance';
 
 // 補講の種類ごとの色（淡い背景＋同系統の文字色）
 const makeupTypeColors: Record<string, string> = {
@@ -35,10 +39,79 @@ function MakeupMark({ row }: { row: AttendanceRowData }) {
     );
 }
 
+// 休んだ日の行に出す、補講予定のタグ。補講の結果によって次のように変わる
+// - 未定：「補講未定」（スタッフがあとで補講先を決める必要があることに気づけるようにする）
+// - 振替・30分前補講で、補講先の出欠が未記録：「振替予定 10/15(木)」
+// - 補講先で出席：「振替済み 10/15(木)」
+// - 補講先で欠席：「振替 10/15(木) 欠席」
+// - 補講なし：「補講なし」（補講しないことが決まっていると分かるようにする）
+// - 出席の日など：出さない
+function MakeupPlanTag({ row }: { row: RegularRowData }) {
+    if (row.makeupType === '未定') {
+        return (
+            <span className="rounded-full bg-status-pending-bg px-2 py-0.5 text-xs font-semibold text-status-pending-text">
+                補講未定
+            </span>
+        );
+    }
+
+    if (row.makeupType === '補講なし') {
+        // 決まっていて対応が要らないものなので、未定（灰色の背景）と区別して枠線だけにする
+        return (
+            <span className="rounded-full border border-border px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                補講なし
+            </span>
+        );
+    }
+
+    if (row.makeupType === null || row.makeupDate === null) {
+        return null;
+    }
+
+    const date = formatDateLabel(row.makeupDate);
+
+    if (row.makeupStatus === '欠席') {
+        return (
+            <span className="rounded-full bg-status-absent-bg px-2 py-0.5 text-xs font-semibold text-status-absent-text">
+                {row.makeupType} {date} 欠席
+            </span>
+        );
+    }
+
+    // 済み：出席ステータスの「振替済み」「30分前補講済み」のバッジの代わりなので、同じ色（種類ごとの色）にする
+    if (row.makeupStatus === '出席') {
+        return (
+            <span
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${makeupTypeColors[row.makeupType] ?? ''}`}
+            >
+                {row.makeupType}済み {date}
+            </span>
+        );
+    }
+
+    // 予定：まだ先の予定であることがパッと見で分かるよう、種類によらず情報の色（青）にする
+    return (
+        <span className="rounded-full bg-primary-tint px-2 py-0.5 text-xs font-semibold text-primary">
+            {row.makeupType}予定 {date}
+        </span>
+    );
+}
+
 // 行の右側に出すバッジ
 function RowBadges({ row }: { row: AttendanceRowData }) {
     if (row.kind === 'regular') {
-        return <StatusBadge status={row.displayStatus} />;
+        // 補講先で出席済みなら、補講予定のタグが「振替済み 10/15(木)」になり、
+        // 表示ステータス（振替済み）と同じ内容になるので、タグだけを出す
+        if (row.makeupStatus === '出席') {
+            return <MakeupPlanTag row={row} />;
+        }
+
+        return (
+            <>
+                <StatusBadge status={row.displayStatus} />
+                <MakeupPlanTag row={row} />
+            </>
+        );
     }
 
     return (

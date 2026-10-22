@@ -38,7 +38,9 @@ class AttendanceController extends Controller
             ->orderBy('name_kana')
             ->get();
 
-        $attendances = Attendance::whereIn('lesson_id', $lessons->pluck('id'))
+        // 休んだ日の行に補講予定の日付を出すため、補講先の授業回も一緒に読み込む
+        $attendances = Attendance::with('makeupLesson')
+            ->whereIn('lesson_id', $lessons->pluck('id'))
             ->get()
             ->keyBy(fn (Attendance $attendance) => "{$attendance->student_id}-{$attendance->lesson_id}");
 
@@ -395,6 +397,10 @@ class AttendanceController extends Controller
             'lessonId' => $lesson->id,
             'displayStatus' => AttendanceDisplayStatus::fromAttendance($attendance)->value,
             'status' => $attendance?->status,
+            // 欠席したときの補講予定（振替／30分前補講／未定／補講なし）と、補講先の日付・補講先での出欠
+            'makeupType' => $attendance?->makeup_type,
+            'makeupDate' => $attendance?->makeupLesson?->date->toDateString(),
+            'makeupStatus' => $attendance?->makeup_status,
             // 同じブロックの末尾に、この生徒の補講の行もあるか（自分のクラスの回に30分前補講で来る場合）
             'hasMakeup' => $blockMakeups->contains('student_id', $student->id),
         ];

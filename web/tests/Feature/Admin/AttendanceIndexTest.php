@@ -427,6 +427,52 @@ class AttendanceIndexTest extends TestCase
         );
     }
 
+    public function test_regular_row_has_makeup_plan_of_the_absence()
+    {
+        // 10/3（土）の土曜B（B1）を休み、10/7（水）の水曜Bに振替で行く予定
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $makeupLesson = $this->createLesson('2026-10-07', 'B', 'B1', '水');
+        $planned = $this->createStudent('B', 'B1', '小3', 'ア振替予定');
+        $done = $this->createStudent('B', 'B1', '小3', 'イ振替済み');
+        $undecided = $this->createStudent('B', 'B1', '小3', 'ウ補講未定');
+        $this->createStudent('B', 'B1', '小3', 'エ記録なし');
+        $noMakeup = $this->createStudent('B', 'B1', '小3', 'オ補講なし');
+        $this->createMakeup($planned, $lesson, $makeupLesson, '振替');
+        $this->createMakeup($done, $lesson, $makeupLesson, '振替', '出席');
+        Attendance::create([
+            'student_id' => $undecided->id,
+            'lesson_id' => $lesson->id,
+            'status' => '欠席',
+            'is_late' => false,
+            'makeup_type' => '未定',
+        ]);
+        Attendance::create([
+            'student_id' => $noMakeup->id,
+            'lesson_id' => $lesson->id,
+            'status' => '欠席',
+            'is_late' => false,
+            'makeup_type' => '補講なし',
+        ]);
+
+        $response = $this->getAttendances('2026-10-03');
+
+        // 休んだ日の行にも、補講予定（補講先の日付と、補講先での出欠）を渡す
+        $response->assertInertia(fn ($page) => $page
+            ->where('blocks.0.rows.0.makeupType', '振替')
+            ->where('blocks.0.rows.0.makeupDate', '2026-10-07')
+            ->where('blocks.0.rows.0.makeupStatus', null)
+            ->where('blocks.0.rows.1.makeupType', '振替')
+            ->where('blocks.0.rows.1.makeupDate', '2026-10-07')
+            ->where('blocks.0.rows.1.makeupStatus', '出席')
+            ->where('blocks.0.rows.2.makeupType', '未定')
+            ->where('blocks.0.rows.2.makeupDate', null)
+            ->where('blocks.0.rows.3.makeupType', null)
+            ->where('blocks.0.rows.3.makeupDate', null)
+            ->where('blocks.0.rows.4.makeupType', '補講なし')
+            ->where('blocks.0.rows.4.makeupDate', null)
+        );
+    }
+
     // ------------------------------------------------------------
     // 振替・30分前補講で「来る側」の行
     // ------------------------------------------------------------
