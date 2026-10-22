@@ -1,24 +1,19 @@
 import { router } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
+import MakeupLessonSheet from '@/components/attendances/makeup-lesson-sheet';
 import StatusBadge from '@/components/attendances/status-badge';
 import { Button } from '@/components/ui/button';
+import { formatMonthDay } from '@/lib/date-format';
 import { cn } from '@/lib/utils';
 import { makeup, update } from '@/routes/admin/attendances';
-import type { AttendanceRowData } from '@/types/attendance';
+import type { AttendanceRowData, MakeupCandidate } from '@/types/attendance';
 
 // 補講の種類ごとの色（淡い背景＋同系統の文字色）
 const makeupTypeColors: Record<string, string> = {
     振替: 'bg-status-transfer-bg text-status-transfer-text',
     '30分前補講': 'bg-status-makeup-bg text-status-makeup',
 };
-
-// "2026-10-01" → "10/1"
-function formatMonthDay(date: string): string {
-    const [, month, day] = date.split('-');
-
-    return `${Number(month)}/${Number(day)}`;
-}
 
 // 記録済みか（出欠サマリーで「未記録」に数えない行か）
 function isRecorded(row: AttendanceRowData): boolean {
@@ -60,20 +55,32 @@ function RowBadges({ row }: { row: AttendanceRowData }) {
     );
 }
 
-export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
+export default function AttendanceRow({
+    row,
+    makeupCandidates,
+}: {
+    row: AttendanceRowData;
+    makeupCandidates: MakeupCandidate[]; // このブロックの補講先の候補
+}) {
     const [isOpen, setIsOpen] = useState(!isRecorded(row));
 
     // ［欠席］を押して、補講予定の選択欄を開いているか（通常の行のみ）
     const [isChoosingMakeup, setIsChoosingMakeup] = useState(false);
 
+    // 補講先の授業回を選ぶモーダルを、振替・30分前補講のどちらで開いているか（nullなら閉じている）
+    const [pickingMakeupType, setPickingMakeupType] = useState<
+        '振替' | '30分前補講' | null
+    >(null);
+
     // 送信して、保存できたら行を折りたたむ
-    function send(url: string, data: Record<string, string>) {
+    function send(url: string, data: Record<string, string | number>) {
         router.patch(url, data, {
             preserveScroll: true, // 画面の一番上に戻らないようにする
             onSuccess: () => {
-                // 保存できたら行を折りたたみ、補講予定の選択欄も閉じる
+                // 保存できたら行を折りたたみ、補講予定の選択欄とモーダルも閉じる
                 setIsOpen(false);
                 setIsChoosingMakeup(false);
+                setPickingMakeupType(null);
             },
         });
     }
@@ -109,6 +116,19 @@ export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
         send(update({ lesson: row.lessonId, student: row.studentId }).url, {
             status: '欠席',
             makeup_type: makeupType,
+        });
+    }
+
+    // ［振替］［30分前補講］：モーダルで補講先の授業回を選んだ時点で、欠席を記録する
+    function recordAbsentWithMakeupLesson(makeupLessonId: number) {
+        if (row.kind !== 'regular' || pickingMakeupType === null) {
+            return;
+        }
+
+        send(update({ lesson: row.lessonId, student: row.studentId }).url, {
+            status: '欠席',
+            makeup_type: pickingMakeupType,
+            makeup_lesson_id: makeupLessonId,
         });
     }
 
@@ -181,11 +201,19 @@ export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
                         補講予定を選択
                     </p>
                     <div className="grid grid-cols-2 gap-1.5">
-                        {/* 振替・30分前補講は G-3c-2 で、授業回を選ぶモーダルを開くようにする */}
-                        <Button type="button" variant="outline" disabled>
+                        {/* 振替・30分前補講は、補講先の授業回を選ぶモーダルを開く */}
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setPickingMakeupType('振替')}
+                        >
                             振替
                         </Button>
-                        <Button type="button" variant="outline" disabled>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setPickingMakeupType('30分前補講')}
+                        >
                             30分前補講
                         </Button>
                         <Button
@@ -205,6 +233,14 @@ export default function AttendanceRow({ row }: { row: AttendanceRowData }) {
                     </div>
                 </div>
             )}
+
+            {/* 補講先の授業回を選ぶモーダル（振替・30分前補講を押したときに開く） */}
+            <MakeupLessonSheet
+                makeupType={pickingMakeupType}
+                candidates={makeupCandidates}
+                onSelect={recordAbsentWithMakeupLesson}
+                onClose={() => setPickingMakeupType(null)}
+            />
         </li>
     );
 }

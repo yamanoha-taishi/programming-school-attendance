@@ -7,17 +7,8 @@ import {
     SheetTitle,
     SheetTrigger,
 } from '@/components/ui/sheet';
+import { formatDateLabel } from '@/lib/date-format';
 import { index } from '@/routes/admin/attendances';
-
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
-
-// "2026-10-06" → "10/6(火)"
-function formatDateLabel(date: string): string {
-    const [year, month, day] = date.split('-').map(Number);
-    const weekday = WEEKDAYS[new Date(year, month - 1, day).getDay()];
-
-    return `${month}/${day}(${weekday})`;
-}
 
 export default function DateNav({
     date,

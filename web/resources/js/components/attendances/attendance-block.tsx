@@ -34,6 +34,7 @@ export default function AttendanceBlock({
                                 : `makeup-${row.attendanceId}`
                         }
                         row={row}
+                        makeupCandidates={block.makeupCandidates}
                     />
                 ))}
             </ul>
