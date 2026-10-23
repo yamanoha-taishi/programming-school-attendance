@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\AttendanceDisplayStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
+use App\Models\Holiday;
 use App\Models\Lesson;
 use App\Models\Section;
 use App\Models\Staff;
@@ -70,6 +71,9 @@ class AttendanceController extends Controller
         return Inertia::render('admin/attendances/index', [
             'date' => $date,
             'lessonDates' => $this->lessonDates(),
+            'upcomingHolidays' => $this->upcomingHolidays(),
+            // まだ来ていない日か。未来の日付では、前もって登録できる欠席（と補講予定）だけを受け付ける
+            'isFuture' => $date > Carbon::today()->toDateString(),
             'lessonNos' => $lessonNos,
             'blocks' => $blocks,
             'daySummary' => [
@@ -94,6 +98,13 @@ class AttendanceController extends Controller
                 && $student->school_class_id === $lesson->lessonPlan->school_class_id,
             404,
         );
+
+        // まだ来ていない授業回には、出席は記録できない（欠席と補講予定は、前もって登録できる）
+        if ($validated['status'] === '出席' && $lesson->date->isAfter(Carbon::today())) {
+            throw ValidationException::withMessages([
+                'status' => 'まだ来ていない授業回には、出席を記録できません。',
+            ]);
+        }
 
         $isAbsent = $validated['status'] === '欠席';
         $makeupType = $isAbsent ? $validated['makeup_type'] : null;
@@ -141,6 +152,13 @@ class AttendanceController extends Controller
             ]);
         }
 
+        // 補講先の授業回がまだ来ていない場合は、補講先の出欠は記録できない
+        if ($attendance->makeupLesson?->date->isAfter(Carbon::today())) {
+            throw ValidationException::withMessages([
+                'makeup_status' => 'まだ来ていない補講先の授業回には、出欠を記録できません。',
+            ]);
+        }
+
         $attendance->update(['makeup_status' => $validated['makeup_status']]);
 
         return back();
@@ -185,18 +203,67 @@ class AttendanceController extends Controller
     }
 
     /**
-     * 日付の切り替え（◀ ▶・日付一覧）に使う、今日以前で授業がある日付の一覧（新しい順）。
+     * 日付の切り替え（◀ ▶・日付一覧）に使う授業日の一覧（新しい順）。
+     * 今日以前の授業日と、未来の授業日のうち記録が登録されている日
+     * （保護者からの欠席・遅刻の事前連絡がある日と、振替・30分前補講で来る予定の生徒がいる日）。
+     * 未来の日付は前もって予定を確かめるために出す。記録が無い未来の日付は出さない。
      *
      * @return Collection<int, string>
      */
     private function lessonDates(): Collection
     {
-        return Lesson::whereDate('date', '<=', Carbon::today()->toDateString())
+        $today = Carbon::today()->toDateString();
+
+        return Lesson::where(fn ($query) => $query
+            ->whereDate('date', '<=', $today)
+            ->orWhere(fn ($query) => $query
+                ->whereDate('date', '>', $today)
+                ->where(fn ($query) => $query
+                    ->whereHas('attendances')
+                    ->orWhereHas('makeupAttendances'))))
             ->orderByDesc('date')
             ->pluck('date')
             ->map(fn ($date) => Carbon::parse($date)->toDateString())
             ->unique()
             ->values();
+    }
+
+    /**
+     * 今後の休校（全体の休校だけ）を、期間ごとにまとめたもの（近い順に最大3件）。
+     * 日付の一覧のモーダルで、次に休みになる週を確かめるために使う。
+     * 休校日は1日ずつ登録されているので、同じ理由で続いている日を1つの期間にまとめる。
+     * 授業が無い日曜日などは登録されていないため、前の日から2日以内なら続いているとみなす。
+     *
+     * @return list<array{reason: string, from: string, until: string}>
+     */
+    private function upcomingHolidays(): array
+    {
+        $holidays = Holiday::whereNull('section_id')
+            ->whereDate('date', '>=', Carbon::today()->toDateString())
+            ->orderBy('date')
+            ->get();
+
+        $periods = [];
+
+        foreach ($holidays as $holiday) {
+            $last = array_key_last($periods);
+
+            if ($last !== null
+                && $periods[$last]['reason'] === $holiday->reason
+                && Carbon::parse($periods[$last]['until'])->diffInDays($holiday->date) <= 2) {
+                $periods[$last]['until'] = $holiday->date->toDateString();
+
+                continue;
+            }
+
+            $periods[] = [
+                'reason' => $holiday->reason,
+                'from' => $holiday->date->toDateString(),
+                'until' => $holiday->date->toDateString(),
+            ];
+        }
+
+        return array_slice($periods, 0, 3);
     }
 
     /**
@@ -259,6 +326,7 @@ class AttendanceController extends Controller
             ->map(fn (Lesson $candidate) => $this->makeupCandidateItem(
                 $candidate,
                 $candidate->lessonPlan->schoolClass->display_name,
+                $candidate->lessonPlan->no,
                 $candidate->lesson_plan_id === $lesson->lesson_plan_id,
             ))
             ->values();
@@ -287,7 +355,9 @@ class AttendanceController extends Controller
                 // 組を付けず「応用クラス」と表示する（一覧画面のブロックの見出しと同じ）
                 $title = preg_replace('/\d+組$/u', '', $displayName) ?? $displayName;
 
-                return $this->makeupCandidateItem($candidate, $title, false);
+                // 授業計画上の回数は参考として渡す（休校は週単位で決まるため、同じ回の授業回はどの組でも同じ回数になる）。
+                // 応用クラスは生徒が自分のペースで進めるため、同じ回の印（sameContent）は付けない
+                return $this->makeupCandidateItem($candidate, $title, $candidate->lessonPlan->no, false);
             })
             ->values();
     }
@@ -295,9 +365,10 @@ class AttendanceController extends Controller
     /**
      * 補講先の候補1件分のデータ。
      *
+     * @param  int  $lessonNo  授業計画上の第何回か
      * @return array<string, mixed>
      */
-    private function makeupCandidateItem(Lesson $candidate, string $title, bool $sameContent): array
+    private function makeupCandidateItem(Lesson $candidate, string $title, int $lessonNo, bool $sameContent): array
     {
         return [
             'lessonId' => $candidate->id,
@@ -306,6 +377,7 @@ class AttendanceController extends Controller
             'startTime' => substr($candidate->section->start_time, 0, 5),
             'endTime' => substr($candidate->section->end_time, 0, 5),
             'title' => $title,
+            'lessonNo' => $lessonNo,
             'sameContent' => $sameContent,
         ];
     }
@@ -395,6 +467,8 @@ class AttendanceController extends Controller
             'nameKana' => $student->name_kana,
             'schoolClassName' => $lesson->lessonPlan->schoolClass->display_name,
             'lessonId' => $lesson->id,
+            // 授業計画上の第何回か（補講先を選ぶモーダルで、どの欠席の補講かを示すのに使う）
+            'lessonNo' => $lesson->lessonPlan->no,
             'displayStatus' => AttendanceDisplayStatus::fromAttendance($attendance)->value,
             'status' => $attendance?->status,
             // 欠席したときの補講予定（振替／30分前補講／未定／補講なし）と、補講先の日付・補講先での出欠

@@ -9,15 +9,18 @@ import {
 } from '@/components/ui/sheet';
 import { formatDateLabel } from '@/lib/date-format';
 import { index } from '@/routes/admin/attendances';
+import type { UpcomingHoliday } from '@/types/attendance';
 
 export default function DateNav({
     date,
     lessonDates,
     lessonNos,
+    upcomingHolidays,
 }: {
     date: string;
-    lessonDates: string[];
+    lessonDates: string[]; // 今日以前の授業日と、記録が登録されている未来の授業日（新しい順）
     lessonNos: number[]; // 授業計画上の第何回か（ふつうは1つ）
+    upcomingHolidays: UpcomingHoliday[]; // 今後の休校（近い順に最大3件）
 }) {
     // 前の授業日：今の日付より古い日付のうち、いちばん新しいもの
     const prevDate = lessonDates.find((d) => d < date);
@@ -62,13 +65,40 @@ export default function DateNav({
                     <SheetContent
                         side="bottom"
                         aria-describedby={undefined}
-                        className="rounded-t-2xl p-4"
+                        className="rounded-t-2xl bg-card p-4"
                     >
                         <SheetTitle className="text-sm font-bold">
                             日付を選択
                         </SheetTitle>
 
-                        {/* 授業がある日付の一覧（新しい順）。多いのでスクロールさせる */}
+                        {/* 今後の休校：次に休みになる週を確かめられるようにする */}
+                        {upcomingHolidays.length > 0 && (
+                            <div className="rounded-lg bg-background px-3 py-2 text-xs">
+                                <p className="mb-1 font-bold text-muted-foreground">
+                                    今後の休校
+                                </p>
+                                <ul className="space-y-0.5">
+                                    {upcomingHolidays.map((holiday) => (
+                                        <li
+                                            key={holiday.from}
+                                            className="flex gap-2"
+                                        >
+                                            <span className="w-16 shrink-0 text-muted-foreground">
+                                                {holiday.reason}
+                                            </span>
+                                            <span>
+                                                {formatDateLabel(holiday.from)}
+                                                {holiday.until !==
+                                                    holiday.from &&
+                                                    `〜${formatDateLabel(holiday.until)}`}
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        {/* 授業日の一覧（新しい順。記録が登録されている未来の日付も含む）。多いのでスクロールさせる */}
                         <ul className="max-h-[50dvh] space-y-2 overflow-y-auto">
                             {lessonDates.map((lessonDate) => (
                                 <li key={lessonDate}>

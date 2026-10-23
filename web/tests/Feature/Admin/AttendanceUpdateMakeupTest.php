@@ -14,6 +14,7 @@ use Database\Seeders\LessonPlanSeeder;
 use Database\Seeders\SchoolClassSeeder;
 use Database\Seeders\SectionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -130,6 +131,18 @@ class AttendanceUpdateMakeupTest extends TestCase
         $attendance = $this->createAbsence('振替', $this->makeupLesson);
 
         $response = $this->patchMakeup($attendance, ['makeup_status' => '遅刻']);
+
+        $response->assertSessionHasErrors('makeup_status');
+        $this->assertDatabaseHas('attendances', ['id' => $attendance->id, 'makeup_status' => null]);
+    }
+
+    public function test_makeup_status_on_a_future_makeup_lesson_is_rejected()
+    {
+        // 今日は10/1。補講先の10/3はまだ来ていないので、補講先の出欠は記録できない
+        $this->travelTo(Carbon::parse('2026-10-01 10:00:00'));
+        $attendance = $this->createAbsence('振替', $this->makeupLesson);
+
+        $response = $this->patchMakeup($attendance, ['makeup_status' => '出席']);
 
         $response->assertSessionHasErrors('makeup_status');
         $this->assertDatabaseHas('attendances', ['id' => $attendance->id, 'makeup_status' => null]);

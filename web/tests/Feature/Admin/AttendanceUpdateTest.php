@@ -14,6 +14,7 @@ use Database\Seeders\LessonPlanSeeder;
 use Database\Seeders\SchoolClassSeeder;
 use Database\Seeders\SectionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
@@ -156,6 +157,36 @@ class AttendanceUpdateTest extends TestCase
 
         $response->assertRedirect(route('login'));
         $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_present_on_a_future_lesson_is_rejected()
+    {
+        // 今日は10/1。10/3の授業回はまだ来ていないので、出席は記録できない
+        $this->travelTo(Carbon::parse('2026-10-01 10:00:00'));
+        $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $student = $this->createStudent('A1', 'A1');
+
+        $response = $this->patchAttendance($lesson, $student, ['status' => '出席']);
+
+        $response->assertSessionHasErrors('status');
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_absent_on_a_future_lesson_can_be_recorded_in_advance()
+    {
+        // 今日は10/1。電話で連絡を受けて、10/3の欠席を前もって登録する
+        $this->travelTo(Carbon::parse('2026-10-01 10:00:00'));
+        $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $student = $this->createStudent('A1', 'A1');
+
+        $response = $this->patchAttendance($lesson, $student, ['status' => '欠席', 'makeup_type' => '未定']);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'status' => '欠席',
+        ]);
     }
 
     // ------------------------------------------------------------

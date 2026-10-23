@@ -4,6 +4,7 @@ namespace Tests\Feature\Admin;
 
 use App\Models\Attendance;
 use App\Models\Guardian;
+use App\Models\Holiday;
 use App\Models\Lesson;
 use App\Models\LessonPlan;
 use App\Models\SchoolClass;
@@ -157,6 +158,75 @@ class AttendanceIndexTest extends TestCase
         );
     }
 
+    public function test_future_lesson_dates_with_records_are_included()
+    {
+        // 今日は9/26（土）。土曜A1の生徒が9/19を休み、10/3（未来）に30分前補講で来る予定。
+        // 火曜A1の生徒からは、9/29（未来）の欠席の事前連絡が入っている
+        $absentLesson = $this->createLesson('2026-09-19', 'A1', 'A1');
+        $makeupLesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $noticeLesson = $this->createLesson('2026-09-29', 'A1', 'A1', '火');
+        $this->createLesson('2026-10-10', 'A1', 'A1'); // 記録が無い未来の授業日
+
+        $this->createMakeup($this->createStudent('A1', 'A1', '年中', 'ア補講予定'), $absentLesson, $makeupLesson, '30分前補講');
+        Attendance::create([
+            'student_id' => $this->createStudent('A1', 'A1', '年中', 'イ事前連絡', weekday: '火')->id,
+            'lesson_id' => $noticeLesson->id,
+            'status' => '欠席',
+            'is_late' => false,
+            'makeup_type' => '未定',
+        ]);
+
+        $response = $this->getAttendances('2026-09-26');
+
+        // 補講で来る予定の日（10/3）と事前連絡がある日（9/29）は入り、記録が無い未来の日（10/10）は入らない
+        $response->assertInertia(fn ($page) => $page
+            ->where('lessonDates', ['2026-10-03', '2026-09-29', '2026-09-19'])
+        );
+    }
+
+    public function test_is_future_tells_whether_the_date_has_not_come_yet()
+    {
+        $this->createLesson('2026-09-26', 'A1', 'A1');
+        $this->createLesson('2026-10-03', 'A1', 'A1');
+
+        // 今日（9/26）はまだ来ていない日ではない
+        $this->getAttendances('2026-09-26')
+            ->assertInertia(fn ($page) => $page->where('isFuture', false));
+
+        $this->getAttendances('2026-10-03')
+            ->assertInertia(fn ($page) => $page->where('isFuture', true));
+    }
+
+    // ------------------------------------------------------------
+    // 今後の休校
+    // ------------------------------------------------------------
+
+    public function test_upcoming_holidays_are_grouped_into_periods()
+    {
+        // 今日は9/26（土）
+        Holiday::create(['section_id' => null, 'date' => '2026-09-19', 'reason' => 'シルバーウィーク']); // 過去
+        // 年末年始：1/3（日）は授業が無いため登録されていないが、続いている期間としてまとめる
+        foreach (['2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02', '2027-01-04'] as $date) {
+            Holiday::create(['section_id' => null, 'date' => $date, 'reason' => '年末年始']);
+        }
+        Holiday::create(['section_id' => null, 'date' => '2027-02-11', 'reason' => '建国記念の日']);
+        // 授業実施単位ごとの休校は、全体の休校ではないので出さない
+        Holiday::create([
+            'section_id' => Section::where('name', 'A1')->where('weekday', '土')->firstOrFail()->id,
+            'date' => '2026-11-07',
+            'reason' => '教室の設備点検',
+        ]);
+
+        $response = $this->getAttendances('2026-09-26');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('upcomingHolidays', [
+                ['reason' => '年末年始', 'from' => '2026-12-28', 'until' => '2027-01-04'],
+                ['reason' => '建国記念の日', 'from' => '2027-02-11', 'until' => '2027-02-11'],
+            ])
+        );
+    }
+
     // ------------------------------------------------------------
     // 補講先（振替・30分前補講）の候補
     // ------------------------------------------------------------
@@ -180,13 +250,16 @@ class AttendanceIndexTest extends TestCase
         $response->assertInertia(fn ($page) => $page
             ->has('blocks.0.makeupCandidates', 3)
             ->where('blocks.0.makeupCandidates.0.date', '2026-09-26')
+            ->where('blocks.0.makeupCandidates.0.lessonNo', 2)
             ->where('blocks.0.makeupCandidates.0.sameContent', false)
             ->where('blocks.0.makeupCandidates.1.lessonId', $tuesday->id)
             ->where('blocks.0.makeupCandidates.1.date', '2026-09-29')
             ->where('blocks.0.makeupCandidates.1.weekday', '火')
             ->where('blocks.0.makeupCandidates.1.title', '基礎クラス1組')
+            ->where('blocks.0.makeupCandidates.1.lessonNo', 1)
             ->where('blocks.0.makeupCandidates.1.sameContent', true)
             ->where('blocks.0.makeupCandidates.2.date', '2026-10-31')
+            ->where('blocks.0.makeupCandidates.2.lessonNo', 4)
         );
     }
 
@@ -209,6 +282,7 @@ class AttendanceIndexTest extends TestCase
             ->where('blocks.0.makeupCandidates.0.lessonId', $wednesdayB3->id)
             ->where('blocks.0.makeupCandidates.0.date', '2026-10-07')
             ->where('blocks.0.makeupCandidates.0.title', '応用クラス')
+            ->where('blocks.0.makeupCandidates.0.lessonNo', 1)
             ->where('blocks.0.makeupCandidates.0.sameContent', false)
             ->where('blocks.0.makeupCandidates.1.lessonId', $nextB1->id)
             ->where('blocks.0.makeupCandidates.1.date', '2026-10-10')
@@ -422,6 +496,7 @@ class AttendanceIndexTest extends TestCase
             ->where('blocks.0.rows.0.studentId', $present->id)
             ->where('blocks.0.rows.0.nameKana', 'ア出席')
             ->where('blocks.0.rows.0.lessonId', $lesson->id)
+            ->where('blocks.0.rows.0.lessonNo', 1)
             ->where('blocks.0.rows.0.displayStatus', '出席')
             ->where('blocks.0.rows.1.displayStatus', '未定')
         );

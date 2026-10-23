@@ -3,8 +3,12 @@ import type { AttendanceBlockData } from '@/types/attendance';
 
 export default function AttendanceBlock({
     block,
+    date,
+    isFuture,
 }: {
     block: AttendanceBlockData;
+    date: string; // 表示している日付
+    isFuture: boolean; // まだ来ていない日か
 }) {
     return (
         <section>
@@ -35,6 +39,8 @@ export default function AttendanceBlock({
                         }
                         row={row}
                         makeupCandidates={block.makeupCandidates}
+                        date={date}
+                        isFuture={isFuture}
                     />
                 ))}
             </ul>

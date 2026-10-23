@@ -16,6 +16,7 @@ type AttendanceRowBase = {
 // 通常の行
 export type RegularRowData = AttendanceRowBase & {
     kind: 'regular';
+    lessonNo: number; // 授業計画上の第何回か
     attendanceId: number | null; // まだ記録が無い生徒は null
     displayStatus: string;
     status: string | null;
@@ -46,6 +47,13 @@ export type AttendanceBlockData = {
     makeupCandidates: MakeupCandidate[]; // このブロックの生徒が欠席したときの補講先の候補
 };
 
+// 今後の休校（全体の休校だけ）を、期間ごとにまとめたもの
+export type UpcomingHoliday = {
+    reason: string; // 休校理由（年末年始など）
+    from: string; // 期間の最初の日
+    until: string; // 期間の最後の日
+};
+
 // 補講先（振替・30分前補講）の候補の授業回
 export type MakeupCandidate = {
     lessonId: number;
@@ -54,5 +62,6 @@ export type MakeupCandidate = {
     startTime: string;
     endTime: string;
     title: string; // 表示名（基礎クラスは「基礎クラス1組」、応用クラスは組を付けず「応用クラス」）
-    sameContent: boolean; // 休んだ授業回と同じ内容か（基礎クラスのみ。振替の候補として探しやすくするため。応用クラスは常にfalse）
+    lessonNo: number; // 授業計画上の第何回か（応用クラスは参考）
+    sameContent: boolean; // 休んだ授業回と同じ回か（基礎クラスのみ。振替のときに強調するため。応用クラスは常にfalse）
 };

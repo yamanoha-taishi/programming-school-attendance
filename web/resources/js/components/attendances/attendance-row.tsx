@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import MakeupLessonSheet from '@/components/attendances/makeup-lesson-sheet';
 import StatusBadge from '@/components/attendances/status-badge';
 import { Button } from '@/components/ui/button';
@@ -13,11 +14,8 @@ import type {
     RegularRowData,
 } from '@/types/attendance';
 
-// 補講の種類ごとの色（淡い背景＋同系統の文字色）
-const makeupTypeColors: Record<string, string> = {
-    振替: 'bg-status-transfer-bg text-status-transfer-text',
-    '30分前補講': 'bg-status-makeup-bg text-status-makeup',
-};
+// 補講に関するタグ（来る側の行の「振替」「30分前補講」、「補講あり」）の色。種類によらず紫にそろえる
+const makeupTagClass = 'bg-status-makeup-bg text-status-makeup';
 
 // 記録済みか（出欠サマリーで「未記録」に数えない行か）
 function isRecorded(row: AttendanceRowData): boolean {
@@ -33,7 +31,9 @@ function MakeupMark({ row }: { row: AttendanceRowData }) {
     }
 
     return (
-        <span className="rounded-full bg-status-makeup-bg px-2 py-0.5 text-xs font-semibold text-status-makeup">
+        <span
+            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${makeupTagClass}`}
+        >
             補講あり
         </span>
     );
@@ -78,12 +78,10 @@ function MakeupPlanTag({ row }: { row: RegularRowData }) {
         );
     }
 
-    // 済み：出席ステータスの「振替済み」「30分前補講済み」のバッジの代わりなので、同じ色（種類ごとの色）にする
+    // 済み：補講に出席して対応が終わった状態なので、出席と同じ緑にする（出席ステータスの「振替済み」「30分前補講済み」のバッジと同じ色）
     if (row.makeupStatus === '出席') {
         return (
-            <span
-                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${makeupTypeColors[row.makeupType] ?? ''}`}
-            >
+            <span className="rounded-full bg-status-attend-bg px-2 py-0.5 text-xs font-semibold text-status-attend-text">
                 {row.makeupType}済み {date}
             </span>
         );
@@ -117,7 +115,7 @@ function RowBadges({ row }: { row: AttendanceRowData }) {
     return (
         <>
             <span
-                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${makeupTypeColors[row.makeupType] ?? ''}`}
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${makeupTagClass}`}
             >
                 {row.makeupType}（{formatMonthDay(row.absentDate)}欠席分）
             </span>
@@ -131,9 +129,13 @@ function RowBadges({ row }: { row: AttendanceRowData }) {
 export default function AttendanceRow({
     row,
     makeupCandidates,
+    date,
+    isFuture,
 }: {
     row: AttendanceRowData;
+    date: string; // 表示している日付（補講先を選ぶモーダルで、どの欠席の補講かを示すのに使う）
     makeupCandidates: MakeupCandidate[]; // このブロックの補講先の候補
+    isFuture: boolean; // まだ来ていない日か（出席や補講先の出欠は記録できず、欠席の事前登録だけできる）
 }) {
     const [isOpen, setIsOpen] = useState(!isRecorded(row));
 
@@ -156,6 +158,13 @@ export default function AttendanceRow({
                 setPickingMakeupType(null);
             },
         });
+    }
+
+    // まだ来ていない日に、記録できないボタン（出席、来る側の行の出欠）を押したとき：理由を画面の下に短く表示する。
+    // ボタンをdisabledにするとタップしても何も起きず理由が伝わらないため、見た目だけ薄くして押せるようにしている
+    function notifyNotYet() {
+        // 同じidのトーストは、すでに出ていれば新しく増やさずに置き換えられるため、何回押しても1つだけになる
+        toast('授業の日になると記録できます', { id: 'not-yet' });
     }
 
     // ［出席］：通常の行は授業の出席、来る側の行は補講先での出席を記録する
@@ -249,8 +258,10 @@ export default function AttendanceRow({
                 <Button
                     type="button"
                     variant="outline"
-                    className="flex-1"
-                    onClick={handlePresent}
+                    // まだ来ていない日は、出席は記録できない（薄く表示して、押したら理由を出す）
+                    className={cn('flex-1', isFuture && 'opacity-50')}
+                    aria-disabled={isFuture}
+                    onClick={isFuture ? notifyNotYet : handlePresent}
                 >
                     出席
                 </Button>
@@ -261,8 +272,15 @@ export default function AttendanceRow({
                         'flex-1',
                         isChoosingMakeup &&
                             'border-status-absent bg-status-absent-bg text-status-absent-text',
+                        isFuture && row.kind === 'makeup' && 'opacity-50',
                     )}
-                    onClick={handleAbsent}
+                    // 来る側の行（補講先での出欠）は、まだ来ていない日には記録できない（薄く表示して、押したら理由を出す）
+                    aria-disabled={isFuture && row.kind === 'makeup'}
+                    onClick={
+                        isFuture && row.kind === 'makeup'
+                            ? notifyNotYet
+                            : handleAbsent
+                    }
                 >
                     欠席
                 </Button>
@@ -307,13 +325,16 @@ export default function AttendanceRow({
                 </div>
             )}
 
-            {/* 補講先の授業回を選ぶモーダル（振替・30分前補講を押したときに開く） */}
-            <MakeupLessonSheet
-                makeupType={pickingMakeupType}
-                candidates={makeupCandidates}
-                onSelect={recordAbsentWithMakeupLesson}
-                onClose={() => setPickingMakeupType(null)}
-            />
+            {/* 補講先の授業回を選ぶモーダル（振替・30分前補講を押したときに開く）。通常の行だけで使う */}
+            {row.kind === 'regular' && (
+                <MakeupLessonSheet
+                    makeupType={pickingMakeupType}
+                    absence={{ name: row.name, date, lessonNo: row.lessonNo }}
+                    candidates={makeupCandidates}
+                    onSelect={recordAbsentWithMakeupLesson}
+                    onClose={() => setPickingMakeupType(null)}
+                />
+            )}
         </li>
     );
 }
