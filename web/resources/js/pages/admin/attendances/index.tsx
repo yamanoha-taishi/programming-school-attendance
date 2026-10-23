@@ -31,7 +31,8 @@ export default function AttendancesIndex({
     return (
         <>
             <Head title="出席記録・一覧" />
-            <header className="border-b border-border bg-card px-3 py-2.5">
+            {/* 日付と出欠サマリーは、スクロールしても画面の上に固定表示する */}
+            <header className="sticky top-0 z-10 border-b border-border bg-card px-3 py-2.5">
                 <DateNav
                     date={date}
                     lessonDates={lessonDates}
