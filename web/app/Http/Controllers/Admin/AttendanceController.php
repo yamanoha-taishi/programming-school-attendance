@@ -21,6 +21,12 @@ use Inertia\Response;
 
 class AttendanceController extends Controller
 {
+    /**
+     * 記録が無くても日付を選べるようにする、未来の期間（今日から何週間後までか）。
+     * 電話などで受けた欠席の連絡を、スタッフが前もって登録できるようにするため。
+     */
+    private const ADVANCE_WEEKS = 5;
+
     public function index(Request $request): Response
     {
         $validated = $request->validate([
@@ -68,12 +74,23 @@ class AttendanceController extends Controller
             ->sort()
             ->values();
 
+        $today = Carbon::today();
+        $advanceUntil = $today->copy()->addWeeks(self::ADVANCE_WEEKS)->toDateString();
+        $weekLessonNos = $this->weekLessonNos();
+
         return Inertia::render('admin/attendances/index', [
             'date' => $date,
-            'lessonDates' => $this->lessonDates(),
+            'today' => $today->toDateString(),
+            'lessonDates' => $this->lessonDates($advanceUntil),
+            // 前もって登録できる期限の目安（日付選択のモーダルのお知らせに出す）
+            'advanceUntil' => $advanceUntil,
+            'advanceWeeks' => self::ADVANCE_WEEKS,
+            'weekLessonNos' => $weekLessonNos,
+            // 授業がある週は休校の週にしない（授業実施単位ごとの休校日だけの週など）
+            'holidayWeeks' => array_diff_key($this->holidayWeeks(), $weekLessonNos),
             'upcomingHolidays' => $this->upcomingHolidays(),
             // まだ来ていない日か。未来の日付では、前もって登録できる欠席（と補講予定）だけを受け付ける
-            'isFuture' => $date > Carbon::today()->toDateString(),
+            'isFuture' => $date > $today->toDateString(),
             'lessonNos' => $lessonNos,
             'blocks' => $blocks,
             'daySummary' => [
@@ -203,24 +220,20 @@ class AttendanceController extends Controller
     }
 
     /**
-     * 日付の切り替え（◀ ▶・日付一覧）に使う授業日の一覧（新しい順）。
-     * 今日以前の授業日と、未来の授業日のうち記録が登録されている日
-     * （保護者からの欠席・遅刻の事前連絡がある日と、振替・30分前補講で来る予定の生徒がいる日）。
-     * 未来の日付は前もって予定を確かめるために出す。記録が無い未来の日付は出さない。
+     * 日付の切り替え（◀ ▶・日付選択のモーダル）で選べる授業日の一覧（新しい順）。
+     * - 前もって登録できる期限（今日から5週間後）までの授業日：今日以前の授業日と、電話などで受けた欠席を前もって登録するための未来の授業日
+     * - それより先の授業日のうち、記録が登録されている日（保護者からの欠席・遅刻の事前連絡がある日と、振替・30分前補講で来る予定の生徒がいる日）
+     * 期限は目安で、それより先でも記録がある日を開けば、ほかの生徒の欠席も前もって登録できる。
      *
+     * @param  string  $advanceUntil  前もって登録できる期限の日付
      * @return Collection<int, string>
      */
-    private function lessonDates(): Collection
+    private function lessonDates(string $advanceUntil): Collection
     {
-        $today = Carbon::today()->toDateString();
-
         return Lesson::where(fn ($query) => $query
-            ->whereDate('date', '<=', $today)
-            ->orWhere(fn ($query) => $query
-                ->whereDate('date', '>', $today)
-                ->where(fn ($query) => $query
-                    ->whereHas('attendances')
-                    ->orWhereHas('makeupAttendances'))))
+            ->whereDate('date', '<=', $advanceUntil)
+            ->orWhereHas('attendances')
+            ->orWhereHas('makeupAttendances'))
             ->orderByDesc('date')
             ->pluck('date')
             ->map(fn ($date) => Carbon::parse($date)->toDateString())
@@ -229,8 +242,41 @@ class AttendanceController extends Controller
     }
 
     /**
+     * 週ごとの、授業計画上の第何回か。キーはその週の月曜日の日付（例：2026-10-19 => 23）。
+     * 日付選択のモーダルで、カレンダーの各週の行に第何回かを出すために使う。
+     * 休校は週単位で決まるため、同じ週の授業回はふつう同じ回数になる。万一ずれていた場合は小さい方を出す。
+     *
+     * @return array<string, int>
+     */
+    private function weekLessonNos(): array
+    {
+        return Lesson::with('lessonPlan:id,no')
+            ->get(['id', 'date', 'lesson_plan_id'])
+            ->groupBy(fn (Lesson $lesson) => $lesson->date->copy()->startOfWeek(Carbon::MONDAY)->toDateString())
+            ->map(fn (Collection $weekLessons) => (int) $weekLessons->min(fn (Lesson $lesson) => $lesson->lessonPlan->no))
+            ->all();
+    }
+
+    /**
+     * 休校の週と、その理由。キーはその週の月曜日の日付（例：2026-11-02 => 文化の日）。
+     * 日付選択のモーダルで、カレンダーの休校の週を枠で囲んで理由を出すために使う。
+     * 全体の休校だけを対象にする。1つの週に別の理由の休校日があれば「・」でつなぐ。
+     *
+     * @return array<string, string>
+     */
+    private function holidayWeeks(): array
+    {
+        return Holiday::whereNull('section_id')
+            ->orderBy('date')
+            ->get()
+            ->groupBy(fn (Holiday $holiday) => $holiday->date->copy()->startOfWeek(Carbon::MONDAY)->toDateString())
+            ->map(fn (Collection $weekHolidays) => $weekHolidays->pluck('reason')->unique()->join('・'))
+            ->all();
+    }
+
+    /**
      * 今後の休校（全体の休校だけ）を、期間ごとにまとめたもの（近い順に最大3件）。
-     * 日付の一覧のモーダルで、次に休みになる週を確かめるために使う。
+     * 日付選択のモーダルで、次に休みになる週を確かめるために使う。
      * 休校日は1日ずつ登録されているので、同じ理由で続いている日を1つの期間にまとめる。
      * 授業が無い日曜日などは登録されていないため、前の日から2日以内なら続いているとみなす。
      *

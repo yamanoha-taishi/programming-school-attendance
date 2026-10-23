@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Info } from 'lucide-react';
+import DateCalendar from '@/components/attendances/date-calendar';
 import {
     Sheet,
     SheetClose,
@@ -7,18 +8,28 @@ import {
     SheetTitle,
     SheetTrigger,
 } from '@/components/ui/sheet';
-import { formatDateLabel } from '@/lib/date-format';
+import { formatDateLabel, formatMonthDay } from '@/lib/date-format';
 import { index } from '@/routes/admin/attendances';
 import type { UpcomingHoliday } from '@/types/attendance';
 
 export default function DateNav({
     date,
+    today,
     lessonDates,
+    advanceUntil,
+    advanceWeeks,
+    weekLessonNos,
+    holidayWeeks,
     lessonNos,
     upcomingHolidays,
 }: {
     date: string;
-    lessonDates: string[]; // 今日以前の授業日と、記録が登録されている未来の授業日（新しい順）
+    today: string;
+    lessonDates: string[]; // 選べる授業日（新しい順）。5週間後までの授業日と、それより先で記録がある日
+    advanceUntil: string; // 前もって登録できる期限の目安（今日から5週間後）
+    advanceWeeks: number; // 前もって登録できる期限が、今日から何週間後か
+    weekLessonNos: Record<string, number>; // 週ごとの第何回か（キーは月曜日の日付）
+    holidayWeeks: Record<string, string>; // 休校の週と理由（キーは月曜日の日付）
     lessonNos: number[]; // 授業計画上の第何回か（ふつうは1つ）
     upcomingHolidays: UpcomingHoliday[]; // 今後の休校（近い順に最大3件）
 }) {
@@ -65,7 +76,7 @@ export default function DateNav({
                     <SheetContent
                         side="bottom"
                         aria-describedby={undefined}
-                        className="rounded-t-2xl bg-card p-4"
+                        className="max-h-[90dvh] overflow-y-auto rounded-t-2xl bg-card p-4"
                     >
                         <SheetTitle className="text-sm font-bold">
                             日付を選択
@@ -98,30 +109,21 @@ export default function DateNav({
                             </div>
                         )}
 
-                        {/* 授業日の一覧（新しい順。記録が登録されている未来の日付も含む）。多いのでスクロールさせる */}
-                        <ul className="max-h-[50dvh] space-y-2 overflow-y-auto">
-                            {lessonDates.map((lessonDate) => (
-                                <li key={lessonDate}>
-                                    {/* 選ぶと、その日付に切り替えてモーダルを閉じる */}
-                                    <SheetClose asChild>
-                                        <Link
-                                            href={
-                                                index({
-                                                    query: { date: lessonDate },
-                                                }).url
-                                            }
-                                            className={`block rounded-lg border px-3 py-2.5 text-sm ${
-                                                lessonDate === date
-                                                    ? 'border-primary bg-primary-tint font-bold text-primary'
-                                                    : 'border-border'
-                                            }`}
-                                        >
-                                            {formatDateLabel(lessonDate)}
-                                        </Link>
-                                    </SheetClose>
-                                </li>
-                            ))}
-                        </ul>
+                        {/* 前もって登録できる期限の目安。それより先でも、記録がある日は選べる */}
+                        <p className="flex items-start gap-1.5 rounded-lg bg-primary-tint px-3 py-2 text-xs text-primary">
+                            <Info className="mt-px size-3.5 shrink-0" />
+                            前もって登録できるのは、{advanceWeeks}週間後（
+                            {formatMonthDay(advanceUntil)}）までです
+                        </p>
+
+                        {/* カレンダー。モーダルを閉じると消え、開くたびに表示中の日付の月から始まる */}
+                        <DateCalendar
+                            date={date}
+                            today={today}
+                            lessonDates={lessonDates}
+                            weekLessonNos={weekLessonNos}
+                            holidayWeeks={holidayWeeks}
+                        />
 
                         <SheetClose className="h-11 rounded-lg border border-border text-sm font-bold">
                             キャンセル

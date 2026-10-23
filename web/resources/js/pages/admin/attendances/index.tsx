@@ -11,7 +11,12 @@ import type {
 
 type Props = {
     date: string;
-    lessonDates: string[]; // 今日以前の授業日と、記録が登録されている未来の授業日（新しい順）
+    today: string;
+    lessonDates: string[]; // 選べる授業日（新しい順）。5週間後までの授業日と、それより先で記録がある日
+    advanceUntil: string; // 前もって登録できる期限の目安（今日から5週間後）
+    advanceWeeks: number; // 前もって登録できる期限が、今日から何週間後か
+    weekLessonNos: Record<string, number>; // 週ごとの授業計画上の第何回か（キーは月曜日の日付）
+    holidayWeeks: Record<string, string>; // 休校の週と理由（キーは月曜日の日付）
     upcomingHolidays: UpcomingHoliday[]; // 今後の休校（近い順に最大3件）
     isFuture: boolean; // まだ来ていない日か（未来の日付では、欠席の事前登録だけできる）
     daySummary: AttendanceSummary;
@@ -21,7 +26,12 @@ type Props = {
 
 export default function AttendancesIndex({
     date,
+    today,
     lessonDates,
+    advanceUntil,
+    advanceWeeks,
+    weekLessonNos,
+    holidayWeeks,
     upcomingHolidays,
     isFuture,
     daySummary,
@@ -35,7 +45,12 @@ export default function AttendancesIndex({
             <header className="sticky top-0 z-10 border-b border-border bg-card px-3 py-2.5">
                 <DateNav
                     date={date}
+                    today={today}
                     lessonDates={lessonDates}
+                    advanceUntil={advanceUntil}
+                    advanceWeeks={advanceWeeks}
+                    weekLessonNos={weekLessonNos}
+                    holidayWeeks={holidayWeeks}
                     lessonNos={lessonNos}
                     upcomingHolidays={upcomingHolidays}
                 />

@@ -49,3 +49,24 @@ export function addDays(date: string, days: number): string {
 
     return toDateString(d);
 }
+
+// その日を含む月の1日。"2026-10-22" → "2026-10-01"
+export function startOfMonth(date: string): string {
+    return `${date.slice(0, 7)}-01`;
+}
+
+// 月を足す（結果はその月の1日）。"2026-10-01" に 1 → "2026-11-01"
+export function addMonths(date: string, months: number): string {
+    const d = toDate(startOfMonth(date));
+
+    d.setMonth(d.getMonth() + months);
+
+    return toDateString(d);
+}
+
+// "2026-10-01" → "2026年10月"
+export function formatYearMonth(date: string): string {
+    const d = toDate(date);
+
+    return `${d.getFullYear()}年${d.getMonth() + 1}月`;
+}

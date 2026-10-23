@@ -21,8 +21,8 @@ use Tests\TestCase;
 
 /**
  * 出席記録・一覧画面（admin.attendances.index）のテスト。
- * 表示する日付の決め方と、日付の切り替えに使う授業日の一覧、補講先の候補、授業計画上の第何回か、授業実施単位ごとのブロック・生徒の行の組み立て、出欠サマリーを確認する。
- * 仕様はルーティング設計のindexの備考、要件定義書5.4を参照。
+ * 表示する日付の決め方と、日付の切り替えに使う授業日の一覧、日付選択のカレンダー（週ごとの第何回か・休校の週）、補講先の候補、授業計画上の第何回か、授業実施単位ごとのブロック・生徒の行の組み立て、出欠サマリーを確認する。
+ * 仕様はルーティング設計の「出席記録・一覧画面の詳細」、要件定義書5.4を参照。
  */
 class AttendanceIndexTest extends TestCase
 {
@@ -115,11 +115,13 @@ class AttendanceIndexTest extends TestCase
     // 日付の切り替え（◀ ▶・日付一覧）に使う授業日の一覧
     // ------------------------------------------------------------
 
-    public function test_lesson_dates_are_lesson_days_up_to_today_in_descending_order()
+    public function test_lesson_dates_are_lesson_days_up_to_five_weeks_later_in_descending_order()
     {
-        // 作成順ではなく新しい順に並び、今日（9/26）より後の9/30は含まれないことを確認する
+        // 今日は9/26（土）。5週間後は10/31（土）。
+        // 作成順ではなく新しい順に並び、記録が無くても5週間後（10/31）までの授業日は含まれ、それより後の11/7は含まれないことを確認する
         $this->createLessonOn('2026-09-23');
-        $this->createLessonOn('2026-09-30');
+        $this->createLessonOn('2026-11-07');
+        $this->createLessonOn('2026-10-31');
         $this->createLessonOn('2026-09-16');
         $this->createLessonOn('2026-09-26');
 
@@ -127,7 +129,19 @@ class AttendanceIndexTest extends TestCase
         $response = $this->getAttendances('2026-09-16');
 
         $response->assertInertia(fn ($page) => $page
-            ->where('lessonDates', ['2026-09-26', '2026-09-23', '2026-09-16'])
+            ->where('lessonDates', ['2026-10-31', '2026-09-26', '2026-09-23', '2026-09-16'])
+        );
+    }
+
+    public function test_today_and_advance_until_are_passed()
+    {
+        // 前もって登録できる期限の目安は、今日（9/26）から5週間後の10/31
+        $response = $this->getAttendances('2026-09-26');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('today', '2026-09-26')
+            ->where('advanceUntil', '2026-10-31')
+            ->where('advanceWeeks', 5)
         );
     }
 
@@ -145,10 +159,10 @@ class AttendanceIndexTest extends TestCase
         );
     }
 
-    public function test_lesson_dates_are_empty_when_there_are_no_lessons_up_to_today()
+    public function test_lesson_dates_are_empty_when_there_are_no_lessons_up_to_five_weeks_later()
     {
-        // 年度開始前など、今日より後にしか授業日が無い場合
-        $this->createLessonOn('2026-09-30');
+        // 授業日が5週間後（10/31）より先にしか無く、記録も無い場合
+        $this->createLessonOn('2026-11-07');
 
         $response = $this->actingAs($this->staff, 'staff')
             ->get(route('admin.attendances.index'));
@@ -158,14 +172,15 @@ class AttendanceIndexTest extends TestCase
         );
     }
 
-    public function test_future_lesson_dates_with_records_are_included()
+    public function test_lesson_dates_after_five_weeks_with_records_are_included()
     {
-        // 今日は9/26（土）。土曜A1の生徒が9/19を休み、10/3（未来）に30分前補講で来る予定。
-        // 火曜A1の生徒からは、9/29（未来）の欠席の事前連絡が入っている
-        $absentLesson = $this->createLesson('2026-09-19', 'A1', 'A1');
-        $makeupLesson = $this->createLesson('2026-10-03', 'A1', 'A1');
-        $noticeLesson = $this->createLesson('2026-09-29', 'A1', 'A1', '火');
-        $this->createLesson('2026-10-10', 'A1', 'A1'); // 記録が無い未来の授業日
+        // 今日は9/26（土）。5週間後は10/31（土）。
+        // 土曜A1の生徒が10/24を休み、11/7（5週間後より先）に30分前補講で来る予定。
+        // 火曜A1の生徒からは、11/10（5週間後より先）の欠席の事前連絡が入っている
+        $absentLesson = $this->createLesson('2026-10-24', 'A1', 'A1');
+        $makeupLesson = $this->createLesson('2026-11-07', 'A1', 'A1');
+        $noticeLesson = $this->createLesson('2026-11-10', 'A1', 'A1', '火');
+        $this->createLesson('2026-11-14', 'A1', 'A1'); // 5週間後より先で、記録が無い授業日
 
         $this->createMakeup($this->createStudent('A1', 'A1', '年中', 'ア補講予定'), $absentLesson, $makeupLesson, '30分前補講');
         Attendance::create([
@@ -178,9 +193,70 @@ class AttendanceIndexTest extends TestCase
 
         $response = $this->getAttendances('2026-09-26');
 
-        // 補講で来る予定の日（10/3）と事前連絡がある日（9/29）は入り、記録が無い未来の日（10/10）は入らない
+        // 補講で来る予定の日（11/7）と事前連絡がある日（11/10）は入り、記録が無い日（11/14）は入らない
         $response->assertInertia(fn ($page) => $page
-            ->where('lessonDates', ['2026-10-03', '2026-09-29', '2026-09-19'])
+            ->where('lessonDates', ['2026-11-10', '2026-11-07', '2026-10-24'])
+        );
+    }
+
+    // ------------------------------------------------------------
+    // 日付選択のモーダルのカレンダー（週ごとの第何回か・休校の週）
+    // ------------------------------------------------------------
+
+    public function test_week_lesson_nos_are_keyed_by_monday_of_the_week()
+    {
+        // createLesson()は授業実施単位ごとに第1回から割り当てる。土曜A1の9/19が第1回、10/3が第2回
+        $this->createLesson('2026-09-19', 'A1', 'A1');
+        $this->createLesson('2026-10-03', 'A1', 'A1');
+
+        $response = $this->getAttendances('2026-09-26');
+
+        // キーはその週の月曜日。授業が無い週（9/21〜9/27）は入らない
+        $response->assertInertia(fn ($page) => $page
+            ->where('weekLessonNos', ['2026-09-14' => 1, '2026-09-28' => 2])
+        );
+    }
+
+    public function test_week_lesson_no_is_the_smallest_when_they_differ_in_the_week()
+    {
+        // 土曜A1だけ先に9/26の授業回を作り、10/3を第2回にする（土曜Bの10/3は第1回のまま）
+        $this->createLesson('2026-09-26', 'A1', 'A1');
+        $this->createLesson('2026-10-03', 'A1', 'A1');
+        $this->createLesson('2026-10-03', 'B', 'B1');
+
+        $response = $this->getAttendances('2026-09-26');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('weekLessonNos', ['2026-09-21' => 1, '2026-09-28' => 1])
+        );
+    }
+
+    public function test_holiday_weeks_are_keyed_by_monday_with_reasons()
+    {
+        // 文化の日の週（11/2〜11/7）。過去・未来を問わず出す
+        foreach (['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07'] as $date) {
+            Holiday::create(['section_id' => null, 'date' => $date, 'reason' => '文化の日']);
+        }
+        // 同じ週に別の理由の休校日がある場合は「・」でつなぐ
+        Holiday::create(['section_id' => null, 'date' => '2026-09-21', 'reason' => '敬老の日']);
+        Holiday::create(['section_id' => null, 'date' => '2026-09-22', 'reason' => '秋分の日']);
+        // 授業がある週（10/12の週）は、休校日があっても休校の週にしない
+        Holiday::create(['section_id' => null, 'date' => '2026-10-12', 'reason' => 'スポーツの日']);
+        $this->createLesson('2026-10-17', 'A1', 'A1');
+        // 授業実施単位ごとの休校は、全体の休校ではないので出さない
+        Holiday::create([
+            'section_id' => Section::where('name', 'A1')->where('weekday', '土')->firstOrFail()->id,
+            'date' => '2026-11-28',
+            'reason' => '教室の設備点検',
+        ]);
+
+        $response = $this->getAttendances('2026-09-26');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('holidayWeeks', [
+                '2026-09-21' => '敬老の日・秋分の日',
+                '2026-11-02' => '文化の日',
+            ])
         );
     }
 
