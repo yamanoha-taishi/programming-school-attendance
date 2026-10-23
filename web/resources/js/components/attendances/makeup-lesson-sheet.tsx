@@ -29,7 +29,7 @@ function groupByWeek(candidates: MakeupCandidate[]): Week[] {
 }
 
 /**
- * 振替・30分前補講の補講先の授業回を選ぶモーダル。
+ * 振替・30分前補講で代わりに来る日（補講先の授業回）を選ぶモーダル。
  * 開くかどうかは親（行）が決める：makeupTypeがnullなら閉じている。
  * 授業回を選ぶと、そのIDをonSelectで親に伝える（記録するのは親）。
  */
@@ -60,13 +60,13 @@ export default function MakeupLessonSheet({
                 className="rounded-t-2xl p-4"
             >
                 <SheetTitle className="text-sm font-bold">
-                    {makeupType === '振替' ? '振替先' : '30分前補講'}
-                    の授業回を選択
+                    {makeupType === '振替' ? '振替日' : '30分前補講の日'}
+                    を選択
                 </SheetTitle>
 
                 {candidates.length === 0 ? (
                     <p className="py-6 text-center text-sm text-muted-foreground">
-                        候補の授業回がありません
+                        選べる日がありません
                     </p>
                 ) : (
                     // 候補は多いので（応用クラスは週4回×5週ほど）、週ごとに見出しを付けてスクロールさせる
