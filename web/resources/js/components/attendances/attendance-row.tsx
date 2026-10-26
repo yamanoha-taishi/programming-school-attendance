@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { ChevronRight, MessageSquareText } from 'lucide-react';
+import { ChevronDown, ChevronRight, MessageSquareText } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import MakeupLessonSheet from '@/components/attendances/makeup-lesson-sheet';
@@ -268,6 +268,12 @@ export default function AttendanceRow({
         });
     }
 
+    // 行を閉じる。記録しなくても閉じられるようにする（補講予定の選択欄も閉じる）
+    function close() {
+        setIsOpen(false);
+        setIsChoosingMakeup(false);
+    }
+
     // 折りたたみ：名前とバッジだけの1行。タップすると開く
     if (!isOpen) {
         return (
@@ -300,20 +306,26 @@ export default function AttendanceRow({
     // 展開：名前・カナ・バッジと、出席／欠席のボタン
     return (
         <li className="border-b border-border bg-card px-3 py-2.5">
-            <div className="flex items-start justify-between">
-                <div>
-                    <div className="flex items-center gap-1.5">
+            {/* 名前の行をタップすると閉じる */}
+            <button
+                type="button"
+                onClick={close}
+                className="flex w-full items-start justify-between text-left"
+            >
+                <span className="block">
+                    <span className="flex items-center gap-1.5">
                         <span className="text-sm font-bold">{row.name}</span>
                         <MakeupMark row={row} />
-                    </div>
-                    <div className="text-xs text-text-faint">
+                    </span>
+                    <span className="block text-xs text-text-faint">
                         {row.nameKana}
-                    </div>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                    <div className="flex items-center gap-1.5">
+                    </span>
+                </span>
+                <span className="flex flex-col items-end gap-1">
+                    <span className="flex items-center gap-1.5">
                         <RowBadges row={row} />
-                    </div>
+                        <ChevronDown className="size-4 text-text-faint" />
+                    </span>
                     {/* 誰が記録したか。開いたときだけ出す。スタッフがまだ対応していない保護者の事前連絡は「保護者の連絡」 */}
                     {row.kind === 'regular' &&
                         (row.recordedBy !== null || row.isNotice) && (
@@ -323,8 +335,8 @@ export default function AttendanceRow({
                                     : '保護者の連絡'}
                             </span>
                         )}
-                </div>
-            </div>
+                </span>
+            </button>
 
             {/* 保護者からの連絡事項 */}
             {row.note !== null && (
