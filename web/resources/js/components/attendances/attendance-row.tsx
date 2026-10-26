@@ -168,6 +168,10 @@ export default function AttendanceRow({
     // ［欠席］を押して、補講予定の選択欄を開いているか（通常の行のみ）
     const [isChoosingMakeup, setIsChoosingMakeup] = useState(false);
 
+    // 補講予定の選択欄を出すか。欠席の記録の行は、補講予定を選び直しやすいよう、開いたときから出しておく
+    const showsMakeupOptions =
+        isChoosingMakeup || (row.kind === 'regular' && row.status === '欠席');
+
     // 補講先の授業回を選ぶモーダルを、振替・30分前補講のどちらで開いているか（nullなら閉じている）
     const [pickingMakeupType, setPickingMakeupType] = useState<
         '振替' | '30分前補講' | null
@@ -268,6 +272,20 @@ export default function AttendanceRow({
         });
     }
 
+    // 今の記録（通常の行は授業の出欠、来る側の行は補講先での出欠）。選ばれている方のボタンに色を付けるのに使う
+    const currentStatus =
+        row.kind === 'regular' ? row.status : row.makeupStatus;
+
+    // 補講予定の選択欄で、今の補講予定のボタンを選ばれた見た目にする（欠席の記録で補講予定があるとき）
+    function makeupOptionClass(makeupType: string): string | false {
+        return (
+            row.kind === 'regular' &&
+            row.status === '欠席' &&
+            row.makeupType === makeupType &&
+            'border-primary bg-primary-tint text-primary'
+        );
+    }
+
     // 行を閉じる。記録しなくても閉じられるようにする（補講予定の選択欄も閉じる）
     function close() {
         setIsOpen(false);
@@ -350,8 +368,15 @@ export default function AttendanceRow({
                 <Button
                     type="button"
                     variant="outline"
-                    // まだ来ていない日は、出席は記録できない（薄く表示して、押したら理由を出す）
-                    className={cn('flex-1', isFuture && 'opacity-50')}
+                    className={cn(
+                        'flex-1',
+                        // 今の記録が出席なら緑にする（欠席を選び直している間は外す）
+                        currentStatus === '出席' &&
+                            !isChoosingMakeup &&
+                            'border-status-attend bg-status-attend-bg text-status-attend-text',
+                        // まだ来ていない日は、出席は記録できない（薄く表示して、押したら理由を出す）
+                        isFuture && 'opacity-50',
+                    )}
                     aria-disabled={isFuture}
                     onClick={isFuture ? notifyNotYet : handlePresent}
                 >
@@ -362,7 +387,8 @@ export default function AttendanceRow({
                     variant="outline"
                     className={cn(
                         'flex-1',
-                        isChoosingMakeup &&
+                        // 今の記録が欠席のとき、または欠席を選んで補講予定を選んでいる間は赤にする
+                        (currentStatus === '欠席' || isChoosingMakeup) &&
                             'border-status-absent bg-status-absent-bg text-status-absent-text',
                         isFuture && row.kind === 'makeup' && 'opacity-50',
                     )}
@@ -377,8 +403,8 @@ export default function AttendanceRow({
                     欠席
                 </Button>
             </div>
-            {/* 補講予定の選択欄：［欠席］を押したときだけ開く */}
-            {isChoosingMakeup && (
+            {/* 補講予定の選択欄：［欠席］を押したとき、または欠席の記録の行を開いたときに出す */}
+            {showsMakeupOptions && (
                 <div className="mt-2.5 border-t border-dashed border-border pt-2">
                     <p className="mb-1.5 text-xs text-muted-foreground">
                         補講予定を選択
@@ -388,6 +414,7 @@ export default function AttendanceRow({
                         <Button
                             type="button"
                             variant="outline"
+                            className={cn(makeupOptionClass('振替'))}
                             onClick={() => setPickingMakeupType('振替')}
                         >
                             振替
@@ -395,6 +422,7 @@ export default function AttendanceRow({
                         <Button
                             type="button"
                             variant="outline"
+                            className={cn(makeupOptionClass('30分前補講'))}
                             onClick={() => setPickingMakeupType('30分前補講')}
                         >
                             30分前補講
@@ -402,6 +430,7 @@ export default function AttendanceRow({
                         <Button
                             type="button"
                             variant="outline"
+                            className={cn(makeupOptionClass('未定'))}
                             onClick={() => recordAbsent('未定')}
                         >
                             未定
@@ -409,6 +438,7 @@ export default function AttendanceRow({
                         <Button
                             type="button"
                             variant="outline"
+                            className={cn(makeupOptionClass('補講なし'))}
                             onClick={() => recordAbsent('補講なし')}
                         >
                             補講なし
