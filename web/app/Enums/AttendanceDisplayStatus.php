@@ -19,8 +19,8 @@ enum AttendanceDisplayStatus: string
      *
      * - 欠席で、補講先で出席済みなら「振替済み」または「30分前補講済み」
      * - それ以外の欠席は「欠席」（補講をまだ受けていない場合や、補講先に来なかった場合を含む）
-     * - 遅刻フラグが立っていれば「遅刻」（授業前に遅刻の連絡があり、出欠がまだ記録されていない場合を含む）
-     * - 時間どおりに出席していれば「出席」
+     * - 出席を記録していれば「出席」（遅刻の連絡があった場合も、記録した後は遅刻したかどうかは重要ではないため）
+     * - 出欠がまだ記録されておらず、遅刻の連絡があれば「遅刻」（授業前に遅刻の連絡があったことを、スタッフが前もって把握できるようにする）
      * - 出席記録が無い、または出欠も遅刻の連絡もまだ無い場合は「未定」
      */
     public static function fromAttendance(?Attendance $attendance): self
@@ -41,10 +41,10 @@ enum AttendanceDisplayStatus: string
             return self::Absent;
         }
 
-        if ($attendance->is_late) {
-            return self::Late;
+        if ($attendance->status === '出席') {
+            return self::Present;
         }
 
-        return $attendance->status === '出席' ? self::Present : self::Undecided;
+        return $attendance->is_late ? self::Late : self::Undecided;
     }
 }

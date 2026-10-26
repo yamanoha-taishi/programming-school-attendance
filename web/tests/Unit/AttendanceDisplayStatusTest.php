@@ -51,9 +51,9 @@ class AttendanceDisplayStatusTest extends TestCase
                 ['status' => '出席', 'is_late' => false],
                 AttendanceDisplayStatus::Present,
             ],
-            '遅刻して出席した' => [
+            '遅刻の連絡があり、出席を記録した' => [
                 ['status' => '出席', 'is_late' => true],
-                AttendanceDisplayStatus::Late,
+                AttendanceDisplayStatus::Present,
             ],
             '授業前に遅刻の連絡があり、出欠はまだ記録されていない' => [
                 ['status' => null, 'is_late' => true],

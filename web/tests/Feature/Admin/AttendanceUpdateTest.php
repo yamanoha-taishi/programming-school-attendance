@@ -71,7 +71,7 @@ class AttendanceUpdateTest extends TestCase
 
         $this->patchAttendance($lesson, $student, ['status' => '出席']);
 
-        // 新しく作らずに既存のレコードを更新し、遅刻フラグは残す（＝遅れて出席）
+        // 新しく作らずに既存のレコードを更新し、遅刻フラグは遅刻の連絡があった記録として残す（表示は「出席」になる）
         $this->assertDatabaseCount('attendances', 1);
         $this->assertDatabaseHas('attendances', [
             'student_id' => $student->id,
