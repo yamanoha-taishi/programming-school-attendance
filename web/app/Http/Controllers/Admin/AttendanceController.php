@@ -120,7 +120,7 @@ class AttendanceController extends Controller
         // まだ来ていない授業回には、出席は記録できない（欠席と補講予定は、前もって登録できる）
         if ($validated['status'] === '出席' && $lesson->date->isAfter(Carbon::today())) {
             throw ValidationException::withMessages([
-                'status' => 'まだ来ていない授業回には、出席を記録できません。',
+                'status' => '授業の日になると記録できます。',
             ]);
         }
 
@@ -173,7 +173,7 @@ class AttendanceController extends Controller
         // 補講先の授業回がまだ来ていない場合は、補講先の出欠は記録できない
         if ($attendance->makeupLesson?->date->isAfter(Carbon::today())) {
             throw ValidationException::withMessages([
-                'makeup_status' => 'まだ来ていない補講先の授業回には、出欠を記録できません。',
+                'makeup_status' => '授業の日になると記録できます。',
             ]);
         }
 

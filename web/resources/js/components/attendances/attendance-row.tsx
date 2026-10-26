@@ -182,7 +182,7 @@ export default function AttendanceRow({
             ? makeupPlanText(row)
             : null;
 
-    // 送信して、保存できたら行を折りたたむ
+    // 送信して、保存できたら行を折りたたむ。保存できなかったらエラーの文言を出す
     function send(url: string, data: Record<string, string | number>) {
         router.patch(url, data, {
             preserveScroll: true, // 画面の一番上に戻らないようにする
@@ -191,6 +191,17 @@ export default function AttendanceRow({
                 setIsOpen(false);
                 setIsChoosingMakeup(false);
                 setPickingMakeupType(null);
+                setIsConfirmingPresent(false);
+            },
+            // サーバーの入力チェックで保存できなかったとき（補講先に選べない授業回だった、など）：
+            // エラーの文言を画面の下に出す。複数あっても、最初の1つだけ出す
+            onError: (errors) => {
+                const message = Object.values(errors)[0];
+
+                if (message !== undefined) {
+                    toast.error(message, { id: 'attendance-error' });
+                }
+
                 setIsConfirmingPresent(false);
             },
         });
