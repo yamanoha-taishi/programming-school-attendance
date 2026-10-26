@@ -248,7 +248,7 @@ class AttendanceSeeder extends Seeder
 
     /**
      * 今日以降の授業回への、保護者からの事前連絡（欠席連絡・遅刻連絡）。
-     * 授業はまだ行われていないため、遅刻連絡のstatusはnull（未定）のままにする。
+     * 授業はまだ行われていないため、遅刻連絡のstatusはnull（未記録）のままにする。
      *
      * @return array<string, mixed>
      */

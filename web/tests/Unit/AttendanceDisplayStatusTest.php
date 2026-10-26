@@ -13,10 +13,10 @@ use Tests\TestCase;
  */
 class AttendanceDisplayStatusTest extends TestCase
 {
-    public function test_undecided_when_there_is_no_attendance_record()
+    public function test_unrecorded_when_there_is_no_attendance_record()
     {
         $this->assertSame(
-            AttendanceDisplayStatus::Undecided,
+            AttendanceDisplayStatus::Unrecorded,
             AttendanceDisplayStatus::fromAttendance(null),
         );
     }
@@ -40,10 +40,10 @@ class AttendanceDisplayStatusTest extends TestCase
     public static function attendanceCases(): array
     {
         return [
-            // ---- 未定 ----
+            // ---- 未記録 ----
             '記録はあるが、出欠も遅刻の連絡もまだ無い' => [
                 ['status' => null, 'is_late' => false],
-                AttendanceDisplayStatus::Undecided,
+                AttendanceDisplayStatus::Unrecorded,
             ],
 
             // ---- 出席・遅刻 ----

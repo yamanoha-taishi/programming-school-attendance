@@ -38,15 +38,16 @@ export default function DateNav({
     // 次の授業日：今の日付より新しい日付のうち、いちばん古いもの
     const nextDate = lessonDates.filter((d) => d > date).at(-1);
 
+    // ◀ ▶：日付を移動する操作なので、日付のボタン・「今日」と同じ青にそろえる
     const arrowClass =
-        'flex h-8 items-center rounded-md border border-border px-2 text-muted-foreground';
+        'flex h-8 items-center rounded-md border border-primary bg-card px-2 text-primary';
 
     return (
         <div className="grid grid-cols-[1fr_auto_1fr] items-center">
             {/* 左：授業計画上の第何回か（授業がない日は出さない）。
-                押せるボタンと区別するため、枠や背景は付けず、左に色の線を付けて「意味のある情報」として目立たせる */}
+                押せるボタンと区別するため、枠や背景は付けず、左に濃い灰色の線を付けて「意味のある情報」として目立たせる（青は操作に使うため使わない） */}
             {lessonNos.length > 0 && (
-                <div className="border-l-3 border-primary pl-1.5 text-sm leading-tight font-bold">
+                <div className="border-l-3 border-foreground pl-1.5 text-sm leading-tight font-bold">
                     第{lessonNos.join('・')}回
                 </div>
             )}
@@ -110,7 +111,7 @@ export default function DateNav({
                         )}
 
                         {/* 前もって登録できる期限の目安。それより先でも、記録がある日は選べる */}
-                        <p className="flex items-start gap-1.5 rounded-lg bg-primary-tint px-3 py-2 text-xs text-primary">
+                        <p className="flex items-start gap-1.5 rounded-lg bg-background px-3 py-2 text-xs text-foreground">
                             <Info className="mt-px size-3.5 shrink-0" />
                             前もって登録できるのは、{advanceWeeks}週間後（
                             {formatMonthDay(advanceUntil)}）までです

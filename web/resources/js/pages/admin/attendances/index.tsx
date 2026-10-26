@@ -58,7 +58,7 @@ export default function AttendancesIndex({
             </header>
             {/* まだ来ていない日の説明。行ごとには出さず、ページに1回だけ出す */}
             {isFuture && (
-                <p className="flex items-start gap-1.5 border-b border-border bg-primary-tint px-3 py-2 text-xs text-primary">
+                <p className="flex items-start gap-1.5 border-b border-border bg-muted px-3 py-2 text-xs text-foreground">
                     <Info className="mt-px size-3.5 shrink-0" />
                     先の日付です。欠席の連絡だけ前もって登録できます。
                 </p>

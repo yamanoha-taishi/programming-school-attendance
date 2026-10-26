@@ -574,7 +574,7 @@ class AttendanceIndexTest extends TestCase
             ->where('blocks.0.rows.0.lessonId', $lesson->id)
             ->where('blocks.0.rows.0.lessonNo', 1)
             ->where('blocks.0.rows.0.displayStatus', '出席')
-            ->where('blocks.0.rows.1.displayStatus', '未定')
+            ->where('blocks.0.rows.1.displayStatus', '未記録')
         );
     }
 

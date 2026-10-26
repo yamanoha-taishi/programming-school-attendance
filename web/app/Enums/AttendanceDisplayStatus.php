@@ -11,7 +11,7 @@ enum AttendanceDisplayStatus: string
     case Absent = '欠席';
     case Late = '遅刻';
     case Present = '出席';
-    case Undecided = '未定';
+    case Unrecorded = '未記録';
 
     /**
      * 出席記録1件から、画面に表示する出席ステータスを決めて返す。
@@ -21,12 +21,12 @@ enum AttendanceDisplayStatus: string
      * - それ以外の欠席は「欠席」（補講をまだ受けていない場合や、補講先に来なかった場合を含む）
      * - 出席を記録していれば「出席」（遅刻の連絡があった場合も、記録した後は遅刻したかどうかは重要ではないため）
      * - 出欠がまだ記録されておらず、遅刻の連絡があれば「遅刻」（授業前に遅刻の連絡があったことを、スタッフが前もって把握できるようにする）
-     * - 出席記録が無い、または出欠も遅刻の連絡もまだ無い場合は「未定」
+     * - 出席記録が無い、または出欠も遅刻の連絡もまだ無い場合は「未記録」
      */
     public static function fromAttendance(?Attendance $attendance): self
     {
         if ($attendance === null) {
-            return self::Undecided;
+            return self::Unrecorded;
         }
 
         if ($attendance->status === '欠席') {
@@ -45,6 +45,6 @@ enum AttendanceDisplayStatus: string
             return self::Present;
         }
 
-        return $attendance->is_late ? self::Late : self::Undecided;
+        return $attendance->is_late ? self::Late : self::Unrecorded;
     }
 }

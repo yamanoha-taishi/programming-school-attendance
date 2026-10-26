@@ -13,7 +13,7 @@ export default function AttendanceBlock({
     return (
         <section>
             {/* 見出し（クラス名・時間・ブロックの出欠サマリー） */}
-            <div className="border-y border-border bg-primary-tint px-3 py-1.5">
+            <div className="border-y border-border bg-muted px-3 py-1.5">
                 <div className="flex justify-between text-xs font-bold">
                     <span>{block.title}</span>
                     <span className="font-normal text-muted-foreground">
