@@ -1,10 +1,17 @@
 import { router } from '@inertiajs/react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, MessageSquareText } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import MakeupLessonSheet from '@/components/attendances/makeup-lesson-sheet';
 import StatusBadge from '@/components/attendances/status-badge';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { formatDateLabel, formatMonthDay } from '@/lib/date-format';
 import { cn } from '@/lib/utils';
 import { makeup, update } from '@/routes/admin/attendances';
@@ -39,6 +46,25 @@ function MakeupMark({ row }: { row: AttendanceRowData }) {
     );
 }
 
+// 振替・30分前補講の補講予定を文にしたもの（「振替予定 10/15(木)」など）。それ以外の補講予定ならnull
+function makeupPlanText(row: RegularRowData): string | null {
+    if (row.makeupType === null || row.makeupDate === null) {
+        return null;
+    }
+
+    const date = formatDateLabel(row.makeupDate);
+
+    if (row.makeupStatus === '欠席') {
+        return `${row.makeupType} ${date} 欠席`;
+    }
+
+    if (row.makeupStatus === '出席') {
+        return `${row.makeupType}済み ${date}`;
+    }
+
+    return `${row.makeupType}予定 ${date}`;
+}
+
 // 休んだ日の行に出す、補講予定のタグ。補講の結果によって次のように変わる
 // - 未定：「補講未定」（スタッフがあとで補講先を決める必要があることに気づけるようにする）
 // - 振替・30分前補講で、補講先の出欠が未記録：「振替予定 10/15(木)」
@@ -64,16 +90,16 @@ function MakeupPlanTag({ row }: { row: RegularRowData }) {
         );
     }
 
-    if (row.makeupType === null || row.makeupDate === null) {
+    const text = makeupPlanText(row);
+
+    if (text === null) {
         return null;
     }
-
-    const date = formatDateLabel(row.makeupDate);
 
     if (row.makeupStatus === '欠席') {
         return (
             <span className="rounded-full bg-status-absent-bg px-2 py-0.5 text-xs font-semibold text-status-absent-text">
-                {row.makeupType} {date} 欠席
+                {text}
             </span>
         );
     }
@@ -82,7 +108,7 @@ function MakeupPlanTag({ row }: { row: RegularRowData }) {
     if (row.makeupStatus === '出席') {
         return (
             <span className="rounded-full bg-status-attend-bg px-2 py-0.5 text-xs font-semibold text-status-attend-text">
-                {row.makeupType}済み {date}
+                {text}
             </span>
         );
     }
@@ -90,7 +116,7 @@ function MakeupPlanTag({ row }: { row: RegularRowData }) {
     // 予定：まだ先の予定であることがパッと見で分かるよう、種類によらず情報の色（青）にする
     return (
         <span className="rounded-full bg-primary-tint px-2 py-0.5 text-xs font-semibold text-primary">
-            {row.makeupType}予定 {date}
+            {text}
         </span>
     );
 }
@@ -147,6 +173,15 @@ export default function AttendanceRow({
         '振替' | '30分前補講' | null
     >(null);
 
+    // ［出席］を押して、補講予定が消える確認を出しているか（通常の行のみ）
+    const [isConfirmingPresent, setIsConfirmingPresent] = useState(false);
+
+    // ［出席］にすると消えてしまう補講予定（振替・30分前補講の補講先が決まっている欠席の記録のとき）
+    const lostMakeupPlan =
+        row.kind === 'regular' && row.status === '欠席'
+            ? makeupPlanText(row)
+            : null;
+
     // 送信して、保存できたら行を折りたたむ
     function send(url: string, data: Record<string, string | number>) {
         router.patch(url, data, {
@@ -156,6 +191,7 @@ export default function AttendanceRow({
                 setIsOpen(false);
                 setIsChoosingMakeup(false);
                 setPickingMakeupType(null);
+                setIsConfirmingPresent(false);
             },
         });
     }
@@ -167,8 +203,15 @@ export default function AttendanceRow({
         toast('授業の日になると記録できます', { id: 'not-yet' });
     }
 
-    // ［出席］：通常の行は授業の出席、来る側の行は補講先での出席を記録する
+    // ［出席］：通常の行は授業の出席、来る側の行は補講先での出席を記録する。
+    // 通常の行で、出席にすると補講予定が消える場合は、先に確認を出す
     function handlePresent() {
+        if (lostMakeupPlan !== null && !isConfirmingPresent) {
+            setIsConfirmingPresent(true);
+
+            return;
+        }
+
         if (row.kind === 'regular') {
             send(update({ lesson: row.lessonId, student: row.studentId }).url, {
                 status: '出席',
@@ -225,6 +268,13 @@ export default function AttendanceRow({
                 >
                     <span className="flex items-center gap-1.5">
                         <span className="text-sm">{row.name}</span>
+                        {/* 保護者からの連絡事項がある印。開くと内容が見える */}
+                        {row.note !== null && (
+                            <MessageSquareText
+                                className="size-3.5 text-muted-foreground"
+                                aria-label="連絡事項あり"
+                            />
+                        )}
                         <MakeupMark row={row} />
                     </span>
                     <span className="flex items-center gap-1.5">
@@ -239,7 +289,7 @@ export default function AttendanceRow({
     // 展開：名前・カナ・バッジと、出席／欠席のボタン
     return (
         <li className="border-b border-border bg-card px-3 py-2.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-start justify-between">
                 <div>
                     <div className="flex items-center gap-1.5">
                         <span className="text-sm font-bold">{row.name}</span>
@@ -249,10 +299,29 @@ export default function AttendanceRow({
                         {row.nameKana}
                     </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                    <RowBadges row={row} />
+                <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-1.5">
+                        <RowBadges row={row} />
+                    </div>
+                    {/* 誰が記録したか。開いたときだけ出す。スタッフがまだ対応していない保護者の事前連絡は「保護者の連絡」 */}
+                    {row.kind === 'regular' &&
+                        (row.recordedBy !== null || row.isNotice) && (
+                            <span className="text-[10px] text-text-faint">
+                                {row.recordedBy !== null
+                                    ? `記録：${row.recordedBy}`
+                                    : '保護者の連絡'}
+                            </span>
+                        )}
                 </div>
             </div>
+
+            {/* 保護者からの連絡事項 */}
+            {row.note !== null && (
+                <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-background px-3 py-2 text-xs whitespace-pre-wrap">
+                    <MessageSquareText className="mt-px size-3.5 shrink-0 text-muted-foreground" />
+                    {row.note}
+                </p>
+            )}
 
             <div className="mt-2 flex gap-1.5">
                 <Button
@@ -324,6 +393,50 @@ export default function AttendanceRow({
                     </div>
                 </div>
             )}
+
+            {/* 出席にすると補講予定が消えることの確認（補講先が決まっている欠席の記録で［出席］を押したときに開く） */}
+            <Dialog
+                open={isConfirmingPresent}
+                onOpenChange={setIsConfirmingPresent}
+            >
+                <DialogContent className="gap-3 bg-card p-4">
+                    <DialogTitle className="text-base">
+                        補講予定が消えます
+                    </DialogTitle>
+                    {/* モーダルの裏の行が見えなくなるので、誰のいつの記録かを出す（補講先を選ぶモーダルと同じ形） */}
+                    {row.kind === 'regular' && (
+                        <p className="rounded-lg bg-background px-3 py-2 text-xs text-muted-foreground">
+                            <span className="font-bold text-foreground">
+                                {row.name}
+                            </span>{' '}
+                            {formatDateLabel(date)} 第{row.lessonNo}回 の記録
+                        </p>
+                    )}
+                    <DialogDescription>
+                        {row.kind === 'regular' && row.isNotice
+                            ? '保護者が登録した'
+                            : ''}
+                        「{lostMakeupPlan}」が消えます。出席にしますか？
+                    </DialogDescription>
+                    <DialogFooter className="flex-row gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => setIsConfirmingPresent(false)}
+                        >
+                            キャンセル
+                        </Button>
+                        <Button
+                            type="button"
+                            className="flex-1"
+                            onClick={handlePresent}
+                        >
+                            出席にする
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* 補講先の授業回を選ぶモーダル（振替・30分前補講を押したときに開く）。通常の行だけで使う */}
             {row.kind === 'regular' && (

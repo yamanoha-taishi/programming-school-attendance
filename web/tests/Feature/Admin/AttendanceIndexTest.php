@@ -578,6 +578,43 @@ class AttendanceIndexTest extends TestCase
         );
     }
 
+    public function test_regular_row_has_recorder_and_notice_flag()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+
+        $recorder = Staff::factory()->create(['name' => '山田 太郎']);
+        $deletedRecorder = Staff::factory()->create(['name' => '佐藤 花子']);
+        $deletedRecorder->delete();
+
+        // スタッフが記録した
+        $recorded = $this->createAttendance($this->createStudent('A1', 'A1', '年中', 'ア記録済み'), $lesson, '出席');
+        $recorded->update(['staff_id' => $recorder->id]);
+        // 保護者が事前連絡し、スタッフはまだ対応していない（staff_idが空）
+        $notice = $this->createAttendance($this->createStudent('A1', 'A1', '年中', 'イ事前連絡'), $lesson, '欠席');
+        $notice->update(['note' => '発熱のため休みます']);
+        // 記録が無い
+        $this->createStudent('A1', 'A1', '年中', 'ウ記録なし');
+        // 記録したスタッフが削除されている
+        $byDeleted = $this->createAttendance($this->createStudent('A1', 'A1', '年中', 'エ削除されたスタッフ'), $lesson, '出席');
+        $byDeleted->update(['staff_id' => $deletedRecorder->id]);
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('blocks.0.rows.0.recordedBy', '山田 太郎')
+            ->where('blocks.0.rows.0.isNotice', false)
+            ->where('blocks.0.rows.0.note', null)
+            ->where('blocks.0.rows.1.recordedBy', null)
+            ->where('blocks.0.rows.1.isNotice', true)
+            ->where('blocks.0.rows.1.note', '発熱のため休みます')
+            ->where('blocks.0.rows.2.recordedBy', null)
+            ->where('blocks.0.rows.2.isNotice', false)
+            // 削除されたスタッフの名前も出す
+            ->where('blocks.0.rows.3.recordedBy', '佐藤 花子')
+            ->where('blocks.0.rows.3.isNotice', false)
+        );
+    }
+
     public function test_regular_row_has_makeup_plan_of_the_absence()
     {
         // 10/3（土）の土曜B（B1）を休み、10/7（水）の水曜Bに振替で行く予定
@@ -727,12 +764,15 @@ class AttendanceIndexTest extends TestCase
         $makeupLesson = $this->createLesson('2026-10-03', 'B', 'B1');
         $student = $this->createStudent('B', 'B1', '小3', 'ア振替で来た', weekday: '水');
         $absentLesson = $this->createLesson('2026-09-30', 'B', 'B1', '水');
-        $this->createMakeup($student, $absentLesson, $makeupLesson, '振替', '出席');
+        $this->createMakeup($student, $absentLesson, $makeupLesson, '振替', '出席')
+            ->update(['note' => '10/3の振替を希望します']);
 
         $response = $this->getAttendances('2026-10-03');
 
+        // 元の欠席記録の連絡事項も、来る側の行に出す
         $response->assertInertia(fn ($page) => $page
             ->where('blocks.0.rows.0.makeupStatus', '出席')
+            ->where('blocks.0.rows.0.note', '10/3の振替を希望します')
         );
     }
 

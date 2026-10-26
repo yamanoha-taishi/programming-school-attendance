@@ -11,6 +11,7 @@ type AttendanceRowBase = {
     nameKana: string;
     schoolClassName: string;
     lessonId: number;
+    note: string | null; // 保護者からの連絡事項
 };
 
 // 通常の行
@@ -23,6 +24,8 @@ export type RegularRowData = AttendanceRowBase & {
     makeupType: string | null; // 欠席したときの補講予定（振替／30分前補講／未定／補講なし）
     makeupDate: string | null; // 補講先の日付（振替・30分前補講のときだけ）
     makeupStatus: string | null; // 補講先での出欠（未記録ならnull）
+    recordedBy: string | null; // 記録したスタッフの名前（スタッフがまだ対応していなければnull）
+    isNotice: boolean; // 保護者からの事前連絡で、スタッフがまだ対応していない記録か
     hasMakeup: boolean;
 };
 

@@ -45,8 +45,9 @@ class AttendanceController extends Controller
             ->orderBy('name_kana')
             ->get();
 
-        // 休んだ日の行に補講予定の日付を出すため、補講先の授業回も一緒に読み込む
-        $attendances = Attendance::with('makeupLesson')
+        // 休んだ日の行に補講予定の日付を出すため、補講先の授業回も一緒に読み込む。
+        // 行に「記録：〇〇」と出すため、記録したスタッフも読み込む（削除されたスタッフの名前も出す）
+        $attendances = Attendance::with(['makeupLesson', 'staff' => fn ($query) => $query->withTrashed()])
             ->whereIn('lesson_id', $lessons->pluck('id'))
             ->get()
             ->keyBy(fn (Attendance $attendance) => "{$attendance->student_id}-{$attendance->lesson_id}");
@@ -521,6 +522,12 @@ class AttendanceController extends Controller
             'makeupType' => $attendance?->makeup_type,
             'makeupDate' => $attendance?->makeupLesson?->date->toDateString(),
             'makeupStatus' => $attendance?->makeup_status,
+            // 記録したスタッフの名前（スタッフがまだ対応していなければnull）
+            'recordedBy' => $attendance?->staff?->name,
+            // 保護者からの事前連絡で、スタッフがまだ対応していない記録か
+            'isNotice' => $attendance !== null && $attendance->staff_id === null,
+            // 保護者からの連絡事項（欠席・遅刻・補講登録画面の自由記入欄）
+            'note' => $attendance?->note,
             // 同じブロックの末尾に、この生徒の補講の行もあるか（自分のクラスの回に30分前補講で来る場合）
             'hasMakeup' => $blockMakeups->contains('student_id', $student->id),
         ];
@@ -569,6 +576,8 @@ class AttendanceController extends Controller
             // 何日の欠席分の補講か（例：2026-09-24。画面では「9/24欠席分」と表示する）
             'absentDate' => $attendance->lesson->date->toDateString(),
             'makeupStatus' => $attendance->makeup_status,
+            // 保護者からの連絡事項（補講の希望などが書かれていることがあるため、補講先の日にも出す）
+            'note' => $attendance->note,
         ];
     }
 
