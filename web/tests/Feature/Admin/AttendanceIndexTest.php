@@ -135,7 +135,7 @@ class AttendanceIndexTest extends TestCase
 
     public function test_today_and_advance_until_are_passed()
     {
-        // 前もって登録できる期限の目安は、今日（9/26）から5週間後の10/31
+        // 事前に登録できる期限の目安は、今日（9/26）から5週間後の10/31
         $response = $this->getAttendances('2026-09-26');
 
         $response->assertInertia(fn ($page) => $page

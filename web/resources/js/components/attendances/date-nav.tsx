@@ -26,8 +26,8 @@ export default function DateNav({
     date: string;
     today: string;
     lessonDates: string[]; // 選べる授業日（新しい順）。5週間後までの授業日と、それより先で記録がある日
-    advanceUntil: string; // 前もって登録できる期限の目安（今日から5週間後）
-    advanceWeeks: number; // 前もって登録できる期限が、今日から何週間後か
+    advanceUntil: string; // 事前に登録できる期限の目安（今日から5週間後）
+    advanceWeeks: number; // 事前に登録できる期限が、今日から何週間後か
     weekLessonNos: Record<string, number>; // 週ごとの第何回か（キーは月曜日の日付）
     holidayWeeks: Record<string, string>; // 休校の週と理由（キーは月曜日の日付）
     lessonNos: number[]; // 授業計画上の第何回か（ふつうは1つ）
@@ -110,10 +110,10 @@ export default function DateNav({
                             </div>
                         )}
 
-                        {/* 前もって登録できる期限の目安。それより先でも、記録がある日は選べる */}
+                        {/* 事前に登録できる期限の目安。それより先でも、記録がある日は選べる */}
                         <p className="flex items-start gap-1.5 rounded-lg bg-background px-3 py-2 text-xs text-foreground">
                             <Info className="mt-px size-3.5 shrink-0" />
-                            前もって登録できるのは、{advanceWeeks}週間後（
+                            事前に登録できるのは、{advanceWeeks}週間後（
                             {formatMonthDay(advanceUntil)}）までです
                         </p>
 

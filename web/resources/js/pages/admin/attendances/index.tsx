@@ -13,8 +13,8 @@ type Props = {
     date: string;
     today: string;
     lessonDates: string[]; // 選べる授業日（新しい順）。5週間後までの授業日と、それより先で記録がある日
-    advanceUntil: string; // 前もって登録できる期限の目安（今日から5週間後）
-    advanceWeeks: number; // 前もって登録できる期限が、今日から何週間後か
+    advanceUntil: string; // 事前に登録できる期限の目安（今日から5週間後）
+    advanceWeeks: number; // 事前に登録できる期限が、今日から何週間後か
     weekLessonNos: Record<string, number>; // 週ごとの授業計画上の第何回か（キーは月曜日の日付）
     holidayWeeks: Record<string, string>; // 休校の週と理由（キーは月曜日の日付）
     upcomingHolidays: UpcomingHoliday[]; // 今後の休校（近い順に最大3件）
@@ -60,7 +60,7 @@ export default function AttendancesIndex({
             {isFuture && (
                 <p className="flex items-start gap-1.5 border-b border-border bg-muted px-3 py-2 text-xs text-foreground">
                     <Info className="mt-px size-3.5 shrink-0" />
-                    先の日付です。欠席の連絡だけ前もって登録できます。
+                    先の日付です。欠席の連絡だけ事前に登録できます。
                 </p>
             )}
             {blocks.length === 0 && (

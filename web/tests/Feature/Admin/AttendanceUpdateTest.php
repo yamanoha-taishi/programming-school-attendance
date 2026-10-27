@@ -174,7 +174,7 @@ class AttendanceUpdateTest extends TestCase
 
     public function test_absent_on_a_future_lesson_can_be_recorded_in_advance()
     {
-        // 今日は10/1。電話で連絡を受けて、10/3の欠席を前もって登録する
+        // 今日は10/1。電話で連絡を受けて、10/3の欠席を事前に登録する
         $this->travelTo(Carbon::parse('2026-10-01 10:00:00'));
         $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
         $student = $this->createStudent('A1', 'A1');

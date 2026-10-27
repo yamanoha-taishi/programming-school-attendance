@@ -23,7 +23,7 @@ class AttendanceController extends Controller
 {
     /**
      * 記録が無くても日付を選べるようにする、未来の期間（今日から何週間後までか）。
-     * 電話などで受けた欠席の連絡を、スタッフが前もって登録できるようにするため。
+     * 電話などで受けた欠席の連絡を、スタッフが事前に登録できるようにするため。
      */
     private const ADVANCE_WEEKS = 5;
 
@@ -83,14 +83,14 @@ class AttendanceController extends Controller
             'date' => $date,
             'today' => $today->toDateString(),
             'lessonDates' => $this->lessonDates($advanceUntil),
-            // 前もって登録できる期限の目安（日付選択のモーダルのお知らせに出す）
+            // 事前に登録できる期限の目安（日付選択のモーダルのお知らせに出す）
             'advanceUntil' => $advanceUntil,
             'advanceWeeks' => self::ADVANCE_WEEKS,
             'weekLessonNos' => $weekLessonNos,
             // 授業がある週は休校の週にしない（授業実施単位ごとの休校日だけの週など）
             'holidayWeeks' => array_diff_key($this->holidayWeeks(), $weekLessonNos),
             'upcomingHolidays' => $this->upcomingHolidays(),
-            // まだ来ていない日か。未来の日付では、前もって登録できる欠席（と補講予定）だけを受け付ける
+            // まだ来ていない日か。未来の日付では、事前に登録できる欠席（と補講予定）だけを受け付ける
             'isFuture' => $date > $today->toDateString(),
             'lessonNos' => $lessonNos,
             'blocks' => $blocks,
@@ -117,7 +117,7 @@ class AttendanceController extends Controller
             404,
         );
 
-        // まだ来ていない授業回には、出席は記録できない（欠席と補講予定は、前もって登録できる）
+        // まだ来ていない授業回には、出席は記録できない（欠席と補講予定は、事前に登録できる）
         if ($validated['status'] === '出席' && $lesson->date->isAfter(Carbon::today())) {
             throw ValidationException::withMessages([
                 'status' => '授業の日になると記録できます。',
@@ -222,11 +222,11 @@ class AttendanceController extends Controller
 
     /**
      * 日付の切り替え（◀ ▶・日付選択のモーダル）で選べる授業日の一覧（新しい順）。
-     * - 前もって登録できる期限（今日から5週間後）までの授業日：今日以前の授業日と、電話などで受けた欠席を前もって登録するための未来の授業日
+     * - 事前に登録できる期限（今日から5週間後）までの授業日：今日以前の授業日と、電話などで受けた欠席を事前に登録するための未来の授業日
      * - それより先の授業日のうち、記録が登録されている日（保護者からの欠席・遅刻の事前連絡がある日と、振替・30分前補講で来る予定の生徒がいる日）
-     * 期限は目安で、それより先でも記録がある日を開けば、ほかの生徒の欠席も前もって登録できる。
+     * 期限は目安で、それより先でも記録がある日を開けば、ほかの生徒の欠席も事前に登録できる。
      *
-     * @param  string  $advanceUntil  前もって登録できる期限の日付
+     * @param  string  $advanceUntil  事前に登録できる期限の日付
      * @return Collection<int, string>
      */
     private function lessonDates(string $advanceUntil): Collection
