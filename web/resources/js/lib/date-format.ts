@@ -70,3 +70,11 @@ export function formatYearMonth(date: string): string {
 
     return `${d.getFullYear()}年${d.getMonth() + 1}月`;
 }
+
+// 時刻から分を引く。"15:00" から 30 → "14:30"
+export function subtractMinutes(time: string, minutes: number): string {
+    const [hour, minute] = time.split(':').map(Number);
+    const total = hour * 60 + minute - minutes;
+
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}

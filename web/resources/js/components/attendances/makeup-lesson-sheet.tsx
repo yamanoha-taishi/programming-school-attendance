@@ -4,7 +4,12 @@ import {
     SheetContent,
     SheetTitle,
 } from '@/components/ui/sheet';
-import { addDays, formatDateLabel, startOfWeek } from '@/lib/date-format';
+import {
+    addDays,
+    formatDateLabel,
+    startOfWeek,
+    subtractMinutes,
+} from '@/lib/date-format';
 import { cn } from '@/lib/utils';
 import type { MakeupCandidate } from '@/types/attendance';
 
@@ -132,13 +137,34 @@ export default function MakeupLessonSheet({
                                                 }
                                                 className="flex w-full items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5 text-left text-sm"
                                             >
-                                                <span>
-                                                    {formatDateLabel(
-                                                        candidate.date,
-                                                    )}{' '}
-                                                    {candidate.startTime}-
-                                                    {candidate.endTime}{' '}
-                                                    {candidate.title}
+                                                {/* 1行目：日付・時間・クラス。日付・時間・クラスのそれぞれの途中では改行しない。
+                                                    30分前補講は、2行目に実際に来てもらう時間（授業の30分前）を太字で出す */}
+                                                <span className="flex flex-col">
+                                                    <span className="flex flex-wrap gap-x-1">
+                                                        <span className="whitespace-nowrap">
+                                                            {formatDateLabel(
+                                                                candidate.date,
+                                                            )}
+                                                        </span>
+                                                        <span className="whitespace-nowrap">
+                                                            {`${candidate.startTime}-${candidate.endTime}`}
+                                                        </span>
+                                                        <span className="whitespace-nowrap">
+                                                            {candidate.title}
+                                                        </span>
+                                                    </span>
+                                                    {makeupType ===
+                                                        '30分前補講' && (
+                                                        <span className="mt-0.5 text-xs">
+                                                            来る時間{' '}
+                                                            <b className="text-sm">
+                                                                {subtractMinutes(
+                                                                    candidate.startTime,
+                                                                    30,
+                                                                )}
+                                                            </b>
+                                                        </span>
+                                                    )}
                                                 </span>
                                             </button>
                                         </li>
