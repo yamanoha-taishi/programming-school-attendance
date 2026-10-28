@@ -2,6 +2,7 @@ import { router } from '@inertiajs/react';
 import {
     Check,
     ChevronDown,
+    CircleDashed,
     ChevronRight,
     Clock,
     MessageSquareText,
@@ -304,6 +305,31 @@ export default function AttendanceRow({
     // ［欠席］が選ばれているか：今の記録が欠席のとき、または欠席を選んで補講予定を選んでいる間
     const isAbsentSelected = currentStatus === '欠席' || isChoosingMakeup;
 
+    // 欠席の記録か（補講予定まで記録済み）
+    const isAbsentRecorded = row.kind === 'regular' && row.status === '欠席';
+
+    // まだ押す必要がある範囲の見た目：押し忘れを防ぐため、ボタンは普通のまま、その範囲を薄いオレンジで囲む。
+    // 記録が済んだら囲みは消える（選んだボタンは濃い枠＋✓）
+    const pendingAreaClass =
+        'rounded-lg border border-brand-accent/30 bg-brand-accent-tint/50 p-1.5';
+    // 囲みの中の見出しは、要対応のオレンジの文字にする
+    const pendingLabelClass = 'font-bold text-brand-accent-text';
+
+    // ［出席］［欠席］を押す必要があるか：出欠がまだ記録されていないとき。
+    // まだ来ていない日は、記録しなくてよい（欠席の連絡があったときだけ登録する）ので除く
+    const needsAttendance =
+        !isFuture && currentStatus === null && !isChoosingMakeup;
+
+    // 補講予定の4つのどれかを押す必要があるか：［欠席］を押したが、補講予定をまだ選んでいない（まだ欠席が記録されていない）とき
+    const needsMakeupChoice = isChoosingMakeup && !isAbsentRecorded;
+
+    // 補講日を選ぶ必要があるか：補講未定の欠席で、補講先を決める必要があるとき（［欠席］を押して選び直している間は除く）
+    const needsMakeupLesson =
+        isAbsentRecorded &&
+        row.kind === 'regular' &&
+        row.makeupType === '未定' &&
+        !isChoosingMakeup;
+
     // 補講予定の選択欄で、今の補講予定か（欠席の記録で補講予定があるとき）
     function isMakeupSelected(makeupType: string): boolean {
         return (
@@ -393,7 +419,12 @@ export default function AttendanceRow({
                 </p>
             )}
 
-            <div className="mt-2 flex gap-1.5">
+            <div
+                className={cn(
+                    'mt-2 flex gap-1.5',
+                    needsAttendance && pendingAreaClass,
+                )}
+            >
                 <Button
                     type="button"
                     variant="outline"
@@ -436,53 +467,92 @@ export default function AttendanceRow({
                 どれかを選ばないと欠席が記録されないため、4つとも同じ見た目のボタンにする（控えめにすると、選ばなくてよいように見えるため） */}
             {showsMakeupOptions && (
                 <div className="mt-2.5 border-t border-dashed border-border pt-2">
-                    <p className="mb-1.5 text-xs text-muted-foreground">
-                        補講日を選ぶ
-                    </p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                        {(['振替', '30分前補講'] as const).map((makeupType) => (
-                            <Button
-                                key={makeupType}
-                                type="button"
-                                variant="outline"
+                    {/* 補講予定をまだ選んでいない間は、4つ全体を囲み、見出しに「まだ記録されていない」ことを出す */}
+                    <div className={cn(needsMakeupChoice && pendingAreaClass)}>
+                        {needsMakeupChoice && (
+                            <p className="mb-2 flex items-center gap-1.5 text-xs font-bold text-brand-accent-text">
+                                <CircleDashed className="size-3.5 shrink-0" />
+                                補講予定を選ぶと、欠席が記録されます
+                            </p>
+                        )}
+                        {/* 補講未定のときは、補講日を選ぶ2つだけを囲む */}
+                        <div
+                            className={cn(
+                                needsMakeupLesson && pendingAreaClass,
+                            )}
+                        >
+                            <p
                                 className={cn(
-                                    isMakeupSelected(makeupType) &&
-                                        selectedClass,
+                                    'mb-1.5 text-xs text-muted-foreground',
+                                    (needsMakeupChoice || needsMakeupLesson) &&
+                                        pendingLabelClass,
                                 )}
-                                onClick={() => setPickingMakeupType(makeupType)}
                             >
-                                {isMakeupSelected(makeupType) && <Check />}
-                                {makeupType}
-                                <ChevronRight className="text-text-faint" />
-                            </Button>
-                        ))}
-                    </div>
+                                補講日を選ぶ
+                            </p>
+                            <div className="grid grid-cols-2 gap-1.5">
+                                {(['振替', '30分前補講'] as const).map(
+                                    (makeupType) => (
+                                        <Button
+                                            key={makeupType}
+                                            type="button"
+                                            variant="outline"
+                                            className={cn(
+                                                isMakeupSelected(makeupType) &&
+                                                    selectedClass,
+                                            )}
+                                            onClick={() =>
+                                                setPickingMakeupType(makeupType)
+                                            }
+                                        >
+                                            {isMakeupSelected(makeupType) && (
+                                                <Check />
+                                            )}
+                                            {makeupType}
+                                            <ChevronRight className="text-text-faint" />
+                                        </Button>
+                                    ),
+                                )}
+                            </div>
+                        </div>
 
-                    <p className="mt-2.5 mb-1.5 text-xs text-muted-foreground">
-                        補講日は選ばない
-                    </p>
-                    <div className="grid grid-cols-2 gap-1.5">
-                        {/* ボタンは押したときの動きの言葉にする（記録後のタグは「補講未定」「補講なし」と状態の言葉で出す） */}
-                        {(
-                            [
-                                { makeupType: '未定', label: 'あとで決める' },
-                                { makeupType: '補講なし', label: '補講しない' },
-                            ] as const
-                        ).map(({ makeupType, label }) => (
-                            <Button
-                                key={makeupType}
-                                type="button"
-                                variant="outline"
-                                className={cn(
-                                    isMakeupSelected(makeupType) &&
-                                        selectedClass,
-                                )}
-                                onClick={() => recordAbsent(makeupType)}
-                            >
-                                {isMakeupSelected(makeupType) && <Check />}
-                                {label}
-                            </Button>
-                        ))}
+                        <p
+                            className={cn(
+                                'mt-2.5 mb-1.5 text-xs text-muted-foreground',
+                                needsMakeupChoice && pendingLabelClass,
+                            )}
+                        >
+                            補講日は選ばない
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5">
+                            {/* ボタンは押したときの動きの言葉にする（記録後のタグは「補講未定」「補講なし」と状態の言葉で出す） */}
+                            {(
+                                [
+                                    {
+                                        makeupType: '未定',
+                                        label: 'あとで決める',
+                                    },
+                                    {
+                                        makeupType: '補講なし',
+                                        label: '補講しない',
+                                    },
+                                ] as const
+                            ).map(({ makeupType, label }) => (
+                                <Button
+                                    key={makeupType}
+                                    type="button"
+                                    variant="outline"
+                                    className={cn(
+                                        isMakeupSelected(makeupType) &&
+                                            selectedClass,
+                                    )}
+                                    onClick={() => recordAbsent(makeupType)}
+                                >
+                                    {isMakeupSelected(makeupType) && <Check />}
+                                    {label}
+                                </Button>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}
