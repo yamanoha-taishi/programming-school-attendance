@@ -5,6 +5,7 @@ import {
     CircleDashed,
     ChevronRight,
     Clock,
+    History,
     MessageSquareText,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -357,13 +358,20 @@ export default function AttendanceRow({
                     <span className="flex items-center gap-1.5">
                         <span className="text-sm">{row.name}</span>
                         <LateMark row={row} />
-                        {/* 保護者からの連絡事項がある印。開くと内容が見える */}
-                        {row.note !== null && (
-                            <MessageSquareText
-                                className="size-3.5 text-muted-foreground"
-                                aria-label="連絡事項あり"
-                            />
-                        )}
+                        {/* 保護者からの連絡事項がある印。開くと内容が見える。
+                            来る側の行は、欠席した日の連絡（前の記録）なので、吹き出しではなく時計の矢印にして区別する */}
+                        {row.note !== null &&
+                            (row.kind === 'makeup' ? (
+                                <History
+                                    className="size-3.5 text-muted-foreground"
+                                    aria-label="欠席時の連絡あり"
+                                />
+                            ) : (
+                                <MessageSquareText
+                                    className="size-3.5 text-muted-foreground"
+                                    aria-label="連絡事項あり"
+                                />
+                            ))}
                         <MakeupMark row={row} />
                     </span>
                     <span className="flex items-center gap-1.5">
@@ -411,13 +419,24 @@ export default function AttendanceRow({
                 </span>
             </button>
 
-            {/* 保護者からの連絡事項 */}
-            {row.note !== null && (
-                <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-background px-3 py-2 text-xs whitespace-pre-wrap">
-                    <MessageSquareText className="mt-px size-3.5 shrink-0 text-muted-foreground" />
-                    {row.note}
-                </p>
-            )}
+            {/* 保護者からの連絡事項。
+                来る側の行は、欠席した日の連絡を前の記録として出す（今日休むと読み違えないよう、
+                見出しで欠席した日を示し、左に線を引いた引用の形・灰色の文字にする） */}
+            {row.note !== null &&
+                (row.kind === 'makeup' ? (
+                    <div className="mt-2 border-l-3 border-border py-0.5 pl-2.5 text-xs text-muted-foreground">
+                        <p className="mb-0.5 flex items-center gap-1 font-bold">
+                            <History className="size-3.5 shrink-0" />
+                            {formatDateLabel(row.absentDate)} 欠席時の連絡
+                        </p>
+                        <p className="whitespace-pre-wrap">{row.note}</p>
+                    </div>
+                ) : (
+                    <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-background px-3 py-2 text-xs whitespace-pre-wrap">
+                        <MessageSquareText className="mt-px size-3.5 shrink-0 text-muted-foreground" />
+                        {row.note}
+                    </p>
+                ))}
 
             <div
                 className={cn(
