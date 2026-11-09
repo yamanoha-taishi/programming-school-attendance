@@ -96,7 +96,7 @@ export default function MakeupLessonSheet({
                     // 候補は多いので（応用クラスは週4回×5週ほど）、週ごとに見出しを付けてスクロールさせる
                     <div className="max-h-[60dvh] space-y-3 overflow-y-auto">
                         {groupByWeek(candidates).map((week) => (
-                            // 振替のときだけ、休んだ回と同じ回の週を、左の青い線と「同じ回」のタグで示す。
+                            // 振替のときだけ、休んだ回と同じ回の週を、左の濃い灰色の線と「同じ回」のタグで示す（操作ではなく情報なので、青は使わない）。
                             // 30分前補講は授業の前の30分で補うもので、厳密には同じ内容ではないため示さない。
                             // 面を塗るとそこだけ押せるように見えるため、線にしている（ヘッダーの第何回と同じ印）。
                             // どの週も左に線の幅の余白を取り、線がある週とない週で候補の位置がずれないようにする
@@ -106,7 +106,7 @@ export default function MakeupLessonSheet({
                                     'border-l-3 border-transparent pl-2',
                                     makeupType === '振替' &&
                                         week.hasSameContent &&
-                                        'border-primary',
+                                        'border-foreground',
                                 )}
                             >
                                 {/* 見出し：その週の授業計画上の第何回か（応用クラスは参考）と、週の範囲 */}
@@ -122,7 +122,7 @@ export default function MakeupLessonSheet({
                                     </span>
                                     {makeupType === '振替' &&
                                         week.hasSameContent && (
-                                            <span className="ml-auto rounded-full bg-primary-tint px-2 py-0.5 font-bold text-primary">
+                                            <span className="ml-auto rounded-full border border-border bg-card px-2 py-0.5 font-bold text-foreground">
                                                 同じ回
                                             </span>
                                         )}
