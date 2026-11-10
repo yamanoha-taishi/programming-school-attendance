@@ -16,6 +16,7 @@ Route::middleware(['auth:guardian,staff'])->group(function () {
 Route::middleware(['auth:staff'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/attendances', [AttendanceController::class, 'index'])->name('attendances.index');
     Route::patch('/lessons/{lesson}/students/{student}/attendance', [AttendanceController::class, 'update'])->name('attendances.update');
+    Route::patch('/attendances/{attendance}/makeup', [AttendanceController::class, 'updateMakeup'])->name('attendances.makeup');
 
     Route::middleware('role:full_access')->group(function () {
         Route::get('/menu', [MenuController::class, 'index'])->name('menu');

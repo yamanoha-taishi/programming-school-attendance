@@ -20,6 +20,7 @@ class Attendance extends Model
         'status',
         'is_late',
         'makeup_type',
+        'makeup_status',
         'note',
     ];
 

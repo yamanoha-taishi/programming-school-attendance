@@ -200,4 +200,51 @@ class InertiaSharedAuthUserTest extends TestCase
         $this->assertAuthenticatedAs($guardian, 'guardian');
         $this->assertAuthenticatedAs($staff, 'staff');
     }
+
+    // ------------------------------------------------------------
+    // auth.role：運営向けの下部タブで「管理」を出し分けるために共有する権限
+    // （スタッフのときだけ値が入り、保護者・未ログインのときはnull）
+    // ------------------------------------------------------------
+
+    public function test_full_access_staff_role_is_shared()
+    {
+        $staff = Staff::factory()->create(['role' => 'full_access']);
+
+        $response = $this->actingAs($staff, 'staff')->get(route('admin.attendances.index'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('auth.role', 'full_access')
+        );
+    }
+
+    public function test_attendance_only_staff_role_is_shared()
+    {
+        $staff = Staff::factory()->create(['role' => 'attendance_only']);
+
+        $response = $this->actingAs($staff, 'staff')->get(route('admin.attendances.index'));
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('auth.role', 'attendance_only')
+        );
+    }
+
+    public function test_guardian_role_is_null()
+    {
+        $guardian = Guardian::factory()->create();
+
+        $response = $this->actingAs($guardian, 'guardian')->get('/');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('auth.role', null)
+        );
+    }
+
+    public function test_guest_role_is_null()
+    {
+        $response = $this->get('/');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('auth.role', null)
+        );
+    }
 }

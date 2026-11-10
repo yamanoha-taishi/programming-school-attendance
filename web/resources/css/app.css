@@ -66,6 +66,8 @@
     --color-brand-accent: #e8823c;
     --color-brand-accent-hover: #c86a28;
     --color-brand-accent-tint: #fceada;
+    /* accent-tintの上に置く文字色。brand-accent-hoverのままだとWCAG AA（4.5:1）に届かないため濃くした */
+    --color-brand-accent-text: #8f4c1d;
     --color-text-faint: #8a93a0;
 
     --color-status-attend: #2f9e4f;
@@ -73,15 +75,19 @@
     --color-status-attend-text: #1f6e37;
     --color-status-late: #b08000;
     --color-status-late-bg: #fbf3dc;
+    /* 以下の-textも同じく、淡い背景（-bg）の上でWCAG AA（4.5:1）に届かせるための濃い文字色 */
+    --color-status-late-text: #7d5b00;
     --color-status-absent: #d6483f;
     --color-status-absent-bg: #fbeae8;
     --color-status-absent-text: #b3261e;
     --color-status-transfer: #1e8a8a;
     --color-status-transfer-bg: #e4f5f5;
+    --color-status-transfer-text: #176b6b;
     --color-status-makeup: #7a4fc9;
     --color-status-makeup-bg: #f1ebfb;
     --color-status-pending: #767c87;
     --color-status-pending-bg: #eeeff1;
+    --color-status-pending-text: #5b5f68;
 }
 
 :root {
