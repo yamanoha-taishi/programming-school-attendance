@@ -23,6 +23,7 @@ export type RegularRowData = AttendanceRowBase & {
     status: string | null;
     makeupType: string | null; // 欠席したときの補講予定（振替／30分前補講／未定／補講なし）
     makeupDate: string | null; // 補講先の日付（振替・30分前補講のときだけ）
+    makeupLessonId: number | null; // 補講先の授業回のID（振替・30分前補講のときだけ）
     makeupStatus: string | null; // 補講先での出欠（未記録ならnull）
     recordedBy: string | null; // 記録したスタッフの名前（スタッフがまだ対応していなければnull）
     isNotice: boolean; // 保護者からの事前連絡で、スタッフがまだ対応していない記録か

@@ -277,6 +277,71 @@ class AttendanceUpdateTest extends TestCase
         ]);
     }
 
+    public function test_makeup_status_is_kept_when_the_same_makeup_plan_is_selected_again()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $makeupLesson = $this->createLesson('2026-10-07', 'B', 'B1', '水');
+        $student = $this->createStudent('B', 'B1');
+
+        // 補講先で「出席」まで記録されていた（振替済み）
+        Attendance::create([
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'status' => '欠席',
+            'is_late' => false,
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $makeupLesson->id,
+            'makeup_status' => '出席',
+        ]);
+
+        // 同じ種類・同じ補講先を選び直す
+        $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $makeupLesson->id,
+        ]);
+
+        // 補講予定は変わっていないので、補講先での出欠（振替済み）は残る
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $makeupLesson->id,
+            'makeup_status' => '出席',
+        ]);
+    }
+
+    public function test_makeup_status_is_cleared_when_only_the_makeup_type_is_changed()
+    {
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $makeupLesson = $this->createLesson('2026-10-07', 'B', 'B1', '水');
+        $student = $this->createStudent('B', 'B1');
+
+        Attendance::create([
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'status' => '欠席',
+            'is_late' => false,
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $makeupLesson->id,
+            'makeup_status' => '出席',
+        ]);
+
+        // 補講先は同じでも、種類（振替→30分前補講）を変えたら、補講予定を決め直したことになる
+        $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '30分前補講',
+            'makeup_lesson_id' => $makeupLesson->id,
+        ]);
+
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'makeup_type' => '30分前補講',
+            'makeup_status' => null,
+        ]);
+    }
+
     public function test_makeup_status_is_cleared_when_makeup_plan_is_changed()
     {
         $lesson = $this->createLesson('2026-10-03', 'B', 'B1');

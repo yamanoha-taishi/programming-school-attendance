@@ -199,14 +199,24 @@ export default function AttendanceRow({
         '振替' | '30分前補講' | null
     >(null);
 
-    // ［出席］を押して、補講予定が消える確認を出しているか（通常の行のみ）
-    const [isConfirmingPresent, setIsConfirmingPresent] = useState(false);
+    // 記録が消える操作の前に出す確認（nullなら閉じている）。
+    // 確認で［出席にする］［変更する］を押したら、runで記録する
+    const [confirmation, setConfirmation] = useState<{
+        title: string;
+        message: string;
+        confirmLabel: string;
+        run: () => void;
+    } | null>(null);
 
-    // ［出席］にすると消えてしまう補講予定（振替・30分前補講の補講先が決まっている欠席の記録のとき）
-    const lostMakeupPlan =
+    // 今の補講予定を文にしたもの（振替・30分前補講の補講先が決まっている欠席の記録のとき。「振替済み 10/29(木)」など）
+    const currentMakeupPlan =
         row.kind === 'regular' && row.status === '欠席'
             ? makeupPlanText(row)
             : null;
+
+    // 補講先での出欠まで記録済みか（振替済み・30分前補講済み、または補講先で欠席）。
+    // 補講予定を変えると、この記録が消える
+    const hasMakeupResult = row.kind === 'regular' && row.makeupStatus !== null;
 
     // 送信して、保存できたら行を折りたたむ。保存できなかったらエラーの文言を出す
     function send(url: string, data: Record<string, string | number>) {
@@ -217,7 +227,7 @@ export default function AttendanceRow({
                 setIsOpen(false);
                 setIsChoosingMakeup(false);
                 setPickingMakeupType(null);
-                setIsConfirmingPresent(false);
+                setConfirmation(null);
             },
             // サーバーの入力チェックで保存できなかったとき（補講先に選べない授業回だった、など）：
             // エラーの文言を画面の下に出す。複数あっても、最初の1つだけ出す
@@ -228,7 +238,7 @@ export default function AttendanceRow({
                     toast.error(message, { id: 'attendance-error' });
                 }
 
-                setIsConfirmingPresent(false);
+                setConfirmation(null);
             },
         });
     }
@@ -243,19 +253,46 @@ export default function AttendanceRow({
     // ［出席］：通常の行は授業の出席、来る側の行は補講先での出席を記録する。
     // 通常の行で、出席にすると補講予定が消える場合は、先に確認を出す
     function handlePresent() {
-        if (lostMakeupPlan !== null && !isConfirmingPresent) {
-            setIsConfirmingPresent(true);
+        if (row.kind === 'makeup') {
+            send(makeup(row.attendanceId).url, { makeup_status: '出席' });
 
             return;
         }
 
-        if (row.kind === 'regular') {
+        const recordPresent = () =>
             send(update({ lesson: row.lessonId, student: row.studentId }).url, {
                 status: '出席',
             });
-        } else {
-            send(makeup(row.attendanceId).url, { makeup_status: '出席' });
+
+        if (currentMakeupPlan === null) {
+            recordPresent();
+
+            return;
         }
+
+        setConfirmation({
+            title: '補講予定が消えます',
+            message: `${row.isNotice ? '保護者が登録した' : ''}「${currentMakeupPlan}」が消えます。出席にしますか？`,
+            confirmLabel: '出席にする',
+            run: recordPresent,
+        });
+    }
+
+    // 補講先での出欠まで記録済みの欠席で、補講予定を変えるとき：補講の記録が消えるので、先に確認を出す。
+    // それ以外はそのまま記録する
+    function confirmMakeupChange(record: () => void) {
+        if (!hasMakeupResult || currentMakeupPlan === null) {
+            record();
+
+            return;
+        }
+
+        setConfirmation({
+            title: '補講の記録が消えます',
+            message: `「${currentMakeupPlan}」の記録が消えます。補講予定を変えますか？`,
+            confirmLabel: '変更する',
+            run: record,
+        });
     }
 
     // ［欠席］：来る側の行は補講先での欠席を記録する。通常の行は、補講予定の選択欄を開く（まだ送らない）
@@ -275,10 +312,14 @@ export default function AttendanceRow({
             return;
         }
 
-        send(update({ lesson: row.lessonId, student: row.studentId }).url, {
-            status: '欠席',
-            makeup_type: makeupType,
-        });
+        const { lessonId, studentId } = row;
+
+        confirmMakeupChange(() =>
+            send(update({ lesson: lessonId, student: studentId }).url, {
+                status: '欠席',
+                makeup_type: makeupType,
+            }),
+        );
     }
 
     // ［振替］［30分前補講］：モーダルで補講先の授業回を選んだ時点で、欠席を記録する
@@ -287,11 +328,31 @@ export default function AttendanceRow({
             return;
         }
 
-        send(update({ lesson: row.lessonId, student: row.studentId }).url, {
-            status: '欠席',
-            makeup_type: pickingMakeupType,
-            makeup_lesson_id: makeupLessonId,
-        });
+        const { lessonId, studentId } = row;
+        const makeupType = pickingMakeupType;
+        const record = () =>
+            send(update({ lesson: lessonId, student: studentId }).url, {
+                status: '欠席',
+                makeup_type: makeupType,
+                makeup_lesson_id: makeupLessonId,
+            });
+
+        // 同じ補講予定（種類と補講先）を選び直したときは、補講の記録は残る（サーバー側で残す）ので確認しない
+        if (
+            row.makeupType === makeupType &&
+            row.makeupLessonId === makeupLessonId
+        ) {
+            record();
+
+            return;
+        }
+
+        // 確認を出すときは、補講先を選ぶモーダルを先に閉じる
+        if (hasMakeupResult) {
+            setPickingMakeupType(null);
+        }
+
+        confirmMakeupChange(record);
     }
 
     // 今の記録（通常の行は授業の出欠、来る側の行は補講先での出欠）。選ばれている方のボタンに色を付けるのに使う
@@ -576,14 +637,20 @@ export default function AttendanceRow({
                 </div>
             )}
 
-            {/* 出席にすると補講予定が消えることの確認（補講先が決まっている欠席の記録で［出席］を押したときに開く） */}
+            {/* 記録が消える操作の前の確認。
+                - 補講先が決まっている欠席の記録で［出席］を押したとき：補講予定が消える
+                - 補講先での出欠まで記録済みの欠席で、補講予定を変えたとき：補講の記録が消える */}
             <Dialog
-                open={isConfirmingPresent}
-                onOpenChange={setIsConfirmingPresent}
+                open={confirmation !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setConfirmation(null);
+                    }
+                }}
             >
                 <DialogContent className="gap-3 bg-card p-4">
                     <DialogTitle className="text-base">
-                        補講予定が消えます
+                        {confirmation?.title}
                     </DialogTitle>
                     {/* モーダルの裏の行が見えなくなるので、誰のいつの記録かを出す（補講先を選ぶモーダルと同じ形） */}
                     {row.kind === 'regular' && (
@@ -595,26 +662,23 @@ export default function AttendanceRow({
                         </p>
                     )}
                     <DialogDescription>
-                        {row.kind === 'regular' && row.isNotice
-                            ? '保護者が登録した'
-                            : ''}
-                        「{lostMakeupPlan}」が消えます。出席にしますか？
+                        {confirmation?.message}
                     </DialogDescription>
                     <DialogFooter className="flex-row gap-2">
                         <Button
                             type="button"
                             variant="outline"
                             className="flex-1"
-                            onClick={() => setIsConfirmingPresent(false)}
+                            onClick={() => setConfirmation(null)}
                         >
                             キャンセル
                         </Button>
                         <Button
                             type="button"
                             className="flex-1"
-                            onClick={handlePresent}
+                            onClick={() => confirmation?.run()}
                         >
-                            出席にする
+                            {confirmation?.confirmLabel}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

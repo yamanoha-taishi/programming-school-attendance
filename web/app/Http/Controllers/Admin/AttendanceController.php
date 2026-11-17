@@ -139,6 +139,13 @@ class AttendanceController extends Controller
         /** @var Staff $staff */
         $staff = $request->user('staff');
 
+        // 同じ補講予定（種類と補講先）を選び直したときは、補講先での出欠（振替済みなど）を残す。
+        // 補講予定を変えたときだけ、補講先での出欠を未記録に戻す
+        $current = Attendance::where('student_id', $student->id)->where('lesson_id', $lesson->id)->first();
+        $isSameMakeup = $makeupLessonId !== null
+            && $current?->makeup_type === $makeupType
+            && (int) $current->makeup_lesson_id === (int) $makeupLessonId;
+
         // この生徒・この授業回のレコードがあれば更新、なければ作成
         Attendance::updateOrCreate(
             ['student_id' => $student->id, 'lesson_id' => $lesson->id],
@@ -147,8 +154,7 @@ class AttendanceController extends Controller
                 // 出席ならnull、欠席なら選んだ補講予定
                 'makeup_type' => $makeupType,
                 'makeup_lesson_id' => $makeupLessonId,
-                // 補講予定を決め直したので、補講先での出欠は未記録に戻す
-                'makeup_status' => null,
+                'makeup_status' => $isSameMakeup ? $current->makeup_status : null,
                 'staff_id' => $staff->id,
             ],
         );
@@ -521,6 +527,8 @@ class AttendanceController extends Controller
             // 欠席したときの補講予定（振替／30分前補講／未定／補講なし）と、補講先の日付・補講先での出欠
             'makeupType' => $attendance?->makeup_type,
             'makeupDate' => $attendance?->makeupLesson?->date->toDateString(),
+            // 補講先の授業回のID（同じ補講先を選び直したかを、画面側で判定するのに使う）
+            'makeupLessonId' => $attendance?->makeup_lesson_id,
             'makeupStatus' => $attendance?->makeup_status,
             // 記録したスタッフの名前（スタッフがまだ対応していなければnull）
             'recordedBy' => $attendance?->staff?->name,
