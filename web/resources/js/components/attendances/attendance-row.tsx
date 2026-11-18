@@ -39,20 +39,69 @@ function Dot({ className }: { className: string }) {
     return <span className={cn('size-1.5 rounded-full', className)} />;
 }
 
-// 記録済みか（出欠サマリーで「未記録」に数えない行か）
+// 記録済みか（出欠サマリーで「未記録」に数えない行か）。
+// 30分前補講でも来る通常の行は、補講の出欠まで記録して記録済みにする
 function isRecorded(row: AttendanceRowData): boolean {
-    return row.kind === 'regular'
-        ? row.status !== null
-        : row.makeupStatus !== null;
+    if (row.kind === 'makeup') {
+        return row.makeupStatus !== null;
+    }
+
+    return (
+        row.status !== null &&
+        (row.catchUp === null || row.catchUp.makeupStatus !== null)
+    );
 }
 
-// 「補講あり」の印。同じブロックの末尾に、この生徒の補講の行もある通常の行に付ける
-function MakeupMark({ row }: { row: AttendanceRowData }) {
-    if (row.kind !== 'regular' || !row.hasMakeup) {
+// 授業の開始時刻の30分前（"14:30" → "14:00"）。30分前補講で実際に来てもらう時間
+function thirtyMinutesBefore(time: string): string {
+    const [hours, minutes] = time.split(':').map(Number);
+    const total = hours * 60 + minutes - 30;
+
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+// 自分のクラスのこの回に30分前補講でも来る生徒の、補講のタグ。補講の出欠によって次のように変わる
+// - 未記録：「14:00〜 30分前補講」（授業の前に補講があることを示し、記録してほしいので未記録と同じオレンジにする）
+// - 出席：「✓ 30分前補講」
+// - 欠席：「30分前補講 欠席」（欠席の赤い点を付ける）
+function CatchUpTag({
+    row,
+    startTime,
+}: {
+    row: AttendanceRowData;
+    startTime: string;
+}) {
+    if (row.kind !== 'regular' || row.catchUp === null) {
         return null;
     }
 
-    return <span className={outlineTagClass}>補講あり</span>;
+    const { makeupType, makeupStatus } = row.catchUp;
+
+    if (makeupStatus === '出席') {
+        return (
+            <span className={outlineTagClass}>
+                <Check className="size-3" />
+                {makeupType}
+            </span>
+        );
+    }
+
+    if (makeupStatus === '欠席') {
+        return (
+            <span className={outlineTagClass}>
+                <Dot className="bg-status-absent" />
+                {makeupType} 欠席
+            </span>
+        );
+    }
+
+    return (
+        <span className="rounded-full bg-brand-accent-tint px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-brand-accent-text">
+            {makeupType === '30分前補講' &&
+                `${thirtyMinutesBefore(startTime)}〜 `}
+            {makeupType}
+        </span>
+    );
 }
 
 // 「遅刻」の印。保護者から遅刻の連絡があり、出欠がまだ記録されていない行の、名前のすぐ横に付ける。
@@ -125,11 +174,11 @@ function MakeupPlanTag({ row }: { row: RegularRowData }) {
         );
     }
 
-    // 済み：補講に出席して対応が終わった状態なので、出席ステータスのバッジと同じ灰色＋緑の点にする
+    // 済み：補講に出席して対応が終わった状態なので、✓を付ける（この回の出欠は、右の「欠席」のバッジで示す）
     if (row.makeupStatus === '出席') {
         return (
-            <span className="inline-flex items-center gap-1 rounded-full bg-status-pending-bg px-2 py-0.5 text-xs font-semibold text-status-pending-text">
-                <Dot className="bg-status-attend" />
+            <span className={outlineTagClass}>
+                <Check className="size-3" />
                 {text}
             </span>
         );
@@ -139,26 +188,35 @@ function MakeupPlanTag({ row }: { row: RegularRowData }) {
     return <span className={outlineTagClass}>{text}</span>;
 }
 
-// 行の右側に出すバッジ
-function RowBadges({ row }: { row: AttendanceRowData }) {
-    if (row.kind === 'regular') {
-        // 補講先で出席済みなら、補講予定のタグが「振替済み 10/15(木)」になり、
-        // 表示ステータス（振替済み）と同じ内容になるので、タグだけを出す
-        if (row.makeupStatus === '出席') {
-            return <MakeupPlanTag row={row} />;
-        }
+// 通常の行の右端のバッジに出す、この回の出欠
+// - 遅刻の連絡がある未記録の行：遅刻は名前の横に出すので「未記録」
+// - 振替済み・30分前補講済み：この回は休んでいるので「欠席」（補講の結果は補講予定のタグで示す）
+function regularBadgeStatus(row: RegularRowData): string {
+    if (row.displayStatus === '遅刻') {
+        return '未記録';
+    }
 
+    if (row.status === '欠席') {
+        return '欠席';
+    }
+
+    return row.displayStatus;
+}
+
+// 行の右側に出すタグとバッジ。右端のバッジは、いつも「この回の出欠」にする（タグはその左に並べる）
+function RowBadges({
+    row,
+    startTime,
+}: {
+    row: AttendanceRowData;
+    startTime: string;
+}) {
+    if (row.kind === 'regular') {
         return (
             <>
-                {/* 遅刻の連絡がある未記録の行は、遅刻は名前の横に出すので、右側は「未記録」にする */}
-                <StatusBadge
-                    status={
-                        row.displayStatus === '遅刻'
-                            ? '未記録'
-                            : row.displayStatus
-                    }
-                />
+                <CatchUpTag row={row} startTime={startTime} />
                 <MakeupPlanTag row={row} />
+                <StatusBadge status={regularBadgeStatus(row)} />
             </>
         );
     }
@@ -178,10 +236,12 @@ export default function AttendanceRow({
     row,
     makeupCandidates,
     date,
+    startTime,
     isFuture,
 }: {
     row: AttendanceRowData;
     date: string; // 表示している日付（補講先を選ぶモーダルで、どの欠席の補講かを示すのに使う）
+    startTime: string; // この授業回の開始時刻（30分前補講で来る時間を出すのに使う）
     makeupCandidates: MakeupCandidate[]; // このブロックの補講先の候補
     isFuture: boolean; // まだ来ていない日か（出席や補講先の出欠は記録できず、欠席の事前登録だけできる）
 }) {
@@ -218,15 +278,19 @@ export default function AttendanceRow({
     // 補講予定を変えると、この記録が消える
     const hasMakeupResult = row.kind === 'regular' && row.makeupStatus !== null;
 
-    // 送信して、保存できたら行を折りたたむ。保存できなかったらエラーの文言を出す
-    function send(url: string, data: Record<string, string | number>) {
+    // 送信して、保存できたら行を折りたたむ（keepOpenなら開いたままにする）。保存できなかったらエラーの文言を出す
+    function send(
+        url: string,
+        data: Record<string, string | number>,
+        keepOpen = false,
+    ) {
         router.patch(url, data, {
             preserveScroll: true, // 画面の一番上に戻らないようにする
             // 日付選択のカレンダーのデータ（1年度分）は受け取り直さない。次に日付を切り替えたときに新しくなる
             except: ['calendar'],
             onSuccess: () => {
                 // 保存できたら行を折りたたみ、補講予定の選択欄とモーダルも閉じる
-                setIsOpen(false);
+                setIsOpen(keepOpen);
                 setIsChoosingMakeup(false);
                 setPickingMakeupType(null);
                 setConfirmation(null);
@@ -403,6 +467,9 @@ export default function AttendanceRow({
         );
     }
 
+    // 自分のクラスのこの回に30分前補講でも来る場合の、補講の情報（通常の行のみ）
+    const catchUp = row.kind === 'regular' ? row.catchUp : null;
+
     // 行を閉じる。記録しなくても閉じられるようにする（補講予定の選択欄も閉じる）
     function close() {
         setIsOpen(false);
@@ -435,10 +502,18 @@ export default function AttendanceRow({
                                     aria-label="連絡事項あり"
                                 />
                             ))}
-                        <MakeupMark row={row} />
+                        {/* 30分前補講でも来る行で、欠席した日の連絡がある印 */}
+                        {row.kind === 'regular' &&
+                            row.note === null &&
+                            row.catchUp?.note != null && (
+                                <History
+                                    className="size-3.5 text-muted-foreground"
+                                    aria-label="欠席時の連絡あり"
+                                />
+                            )}
                     </span>
                     <span className="flex items-center gap-1.5">
-                        <RowBadges row={row} />
+                        <RowBadges row={row} startTime={startTime} />
                         <ChevronRight className="size-4 text-text-faint" />
                     </span>
                 </button>
@@ -459,7 +534,6 @@ export default function AttendanceRow({
                     <span className="flex items-center gap-1.5">
                         <span className="text-sm font-bold">{row.name}</span>
                         <LateMark row={row} />
-                        <MakeupMark row={row} />
                     </span>
                     <span className="block text-xs text-text-faint">
                         {row.nameKana}
@@ -467,7 +541,7 @@ export default function AttendanceRow({
                 </span>
                 <span className="flex flex-col items-end gap-1">
                     <span className="flex items-center gap-1.5">
-                        <RowBadges row={row} />
+                        <RowBadges row={row} startTime={startTime} />
                         <ChevronDown className="size-4 text-text-faint" />
                     </span>
                     {/* 誰が記録したか。開いたときだけ出す。スタッフがまだ対応していない保護者の事前連絡は「保護者の連絡」 */}
@@ -501,9 +575,79 @@ export default function AttendanceRow({
                     </p>
                 ))}
 
+            {/* 自分のクラスのこの回に30分前補講でも来る行：来る順に「① 30分前補講」「② 授業」の2段で記録する */}
+            {catchUp !== null && (
+                <div className="mt-2">
+                    <p className="mb-1.5 text-xs font-bold">
+                        ① {catchUp.makeupType}
+                        {catchUp.makeupType === '30分前補講' &&
+                            ` ${thirtyMinutesBefore(startTime)}〜`}
+                        <span className="font-normal text-muted-foreground">
+                            （{formatMonthDay(catchUp.absentDate)}欠席分）
+                        </span>
+                    </p>
+                    {catchUp.note !== null && (
+                        <div className="mb-2 border-l-3 border-border py-0.5 pl-2.5 text-xs text-muted-foreground">
+                            <p className="mb-0.5 flex items-center gap-1 font-bold">
+                                <History className="size-3.5 shrink-0" />
+                                {formatDateLabel(catchUp.absentDate)}{' '}
+                                欠席時の連絡
+                            </p>
+                            <p className="whitespace-pre-wrap">
+                                {catchUp.note}
+                            </p>
+                        </div>
+                    )}
+                    <div
+                        className={cn(
+                            'flex gap-1.5',
+                            !isFuture &&
+                                catchUp.makeupStatus === null &&
+                                pendingAreaClass,
+                        )}
+                    >
+                        {(['出席', '欠席'] as const).map((status) => (
+                            <Button
+                                key={status}
+                                type="button"
+                                variant="outline"
+                                className={cn(
+                                    'flex-1',
+                                    catchUp.makeupStatus === status &&
+                                        selectedClass,
+                                    // まだ来ていない日は、補講の出欠は記録できない（薄く表示して、押したら理由を出す）
+                                    isFuture && 'opacity-50',
+                                )}
+                                aria-disabled={isFuture}
+                                onClick={
+                                    isFuture
+                                        ? notifyNotYet
+                                        : () =>
+                                              send(
+                                                  makeup(catchUp.attendanceId)
+                                                      .url,
+                                                  { makeup_status: status },
+                                                  // 授業の出欠がまだなら、続けて記録できるよう開いたままにする
+                                                  row.kind === 'regular' &&
+                                                      row.status === null,
+                                              )
+                                }
+                            >
+                                {catchUp.makeupStatus === status && <Check />}
+                                {status}
+                            </Button>
+                        ))}
+                    </div>
+                    <p className="mt-2.5 mb-1.5 text-xs font-bold">
+                        ② 授業 {startTime}〜
+                    </p>
+                </div>
+            )}
+
             <div
                 className={cn(
-                    'mt-2 flex gap-1.5',
+                    'flex gap-1.5',
+                    catchUp === null && 'mt-2',
                     needsAttendance && pendingAreaClass,
                 )}
             >

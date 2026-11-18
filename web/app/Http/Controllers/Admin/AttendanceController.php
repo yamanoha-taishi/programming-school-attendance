@@ -100,10 +100,11 @@ class AttendanceController extends Controller
             'isFuture' => $date > $today->toDateString(),
             'lessonNos' => $lessonNos,
             'blocks' => $blocks,
+            // その日の出欠サマリー。その日の生徒全員（各ブロックに所属する生徒と、補講で来る生徒）を足す
             'daySummary' => [
-                'present' => $blocks->sum('summary.present'),
-                'absent' => $blocks->sum('summary.absent'),
-                'unrecorded' => $blocks->sum('summary.unrecorded'),
+                'present' => $blocks->sum('summary.present') + $blocks->sum('makeupSummary.present'),
+                'absent' => $blocks->sum('summary.absent') + $blocks->sum('makeupSummary.absent'),
+                'unrecorded' => $blocks->sum('summary.unrecorded') + $blocks->sum('makeupSummary.unrecorded'),
             ],
         ]);
     }
@@ -557,18 +558,24 @@ class AttendanceController extends Controller
                 fn (Attendance $a, Attendance $b) => $a->student->gradeOrder() <=> $b->student->gradeOrder(),
             ]);
 
-        $regularRows = $students
+        // このブロックに所属する生徒の行
+        $rows = $students
             ->where('section_id', $section->id)
             ->sortBy([
                 fn (Student $a, Student $b) => $a->schoolClass->code <=> $b->schoolClass->code,
                 fn (Student $a, Student $b) => $a->gradeOrder() <=> $b->gradeOrder(),
             ])
             ->map(fn (Student $student) => $this->buildRow($student, $sectionLessons, $attendances, $blockMakeups))
-            ->filter();
+            ->filter()
+            ->values();
 
-        $makeupRows = $blockMakeups->map(fn (Attendance $attendance) => $this->buildMakeupRow($attendance));
-
-        $rows = $regularRows->concat($makeupRows)->values();
+        // ほかの回から補講で来る生徒の行。
+        // 自分のクラスの回に30分前補講で来る生徒は、所属する生徒の行にまとめる（catchUp）ので、ここには出さない
+        $rowStudentIds = $rows->pluck('studentId');
+        $makeupRows = $blockMakeups
+            ->reject(fn (Attendance $attendance) => $rowStudentIds->contains($attendance->student_id))
+            ->map(fn (Attendance $attendance) => $this->buildMakeupRow($attendance))
+            ->values();
 
         return [
             'sectionId' => $section->id,
@@ -576,9 +583,15 @@ class AttendanceController extends Controller
             'startTime' => substr($section->start_time, 0, 5),
             'endTime' => substr($section->end_time, 0, 5),
             'rows' => $rows,
+            'makeupRows' => $makeupRows,
             // このブロックの生徒が欠席したときの補講先の候補
             'makeupCandidates' => $makeupCandidates->get($section->id, collect()),
-            'summary' => $this->summarize($rows),
+            // 所属する生徒の出欠。30分前補講もある生徒は、補講の出欠がまだなら未記録に数える（記録し忘れを残さないため）
+            'summary' => $this->summarize($rows->map(
+                fn (array $row) => $row['catchUp'] !== null && $row['catchUp']['makeupStatus'] === null ? null : $row['status']
+            )),
+            // ほかの回から補講で来る生徒の、補講先での出欠
+            'makeupSummary' => $this->summarize($makeupRows->map(fn (array $row) => $row['makeupStatus'])),
         ];
     }
 
@@ -604,6 +617,9 @@ class AttendanceController extends Controller
 
         $attendance = $attendances->get("{$student->id}-{$lesson->id}");
 
+        // 自分のクラスのこの回に、別の日の欠席分の30分前補講で来るときの、その欠席記録
+        $catchUp = $blockMakeups->firstWhere('student_id', $student->id);
+
         return [
             'kind' => 'regular',
             'attendanceId' => $attendance?->id,
@@ -628,8 +644,16 @@ class AttendanceController extends Controller
             'isNotice' => $attendance !== null && $attendance->staff_id === null,
             // 保護者からの連絡事項（欠席・遅刻・補講登録画面の自由記入欄）
             'note' => $attendance?->note,
-            // 同じブロックの末尾に、この生徒の補講の行もあるか（自分のクラスの回に30分前補講で来る場合）
-            'hasMakeup' => $blockMakeups->contains('student_id', $student->id),
+            // 自分のクラスのこの回に30分前補講でも来る場合の、補講の情報（行を分けず、この行で補講の出欠も記録する）
+            'catchUp' => $catchUp === null ? null : [
+                // 補講先での出欠を記録するとき（updateMakeupルート）に使う、元の欠席記録のID
+                'attendanceId' => $catchUp->id,
+                'makeupType' => $catchUp->makeup_type,
+                'absentDate' => $catchUp->lesson->date->toDateString(),
+                'makeupStatus' => $catchUp->makeup_status,
+                // 欠席した日の保護者からの連絡事項
+                'note' => $catchUp->note,
+            ],
         ];
     }
 
@@ -682,18 +706,13 @@ class AttendanceController extends Controller
     }
 
     /**
-     * 行を「出席・欠席・未記録」に分けて数える。
-     * 通常の行は status、来る側の行は makeupStatus で判定する。
+     * 行ごとの出欠（出席・欠席・未記録ならnull）を、「出席・欠席・未記録」に分けて数える。
      *
-     * @param  Collection<int, array<string, mixed>>  $rows
+     * @param  Collection<int, mixed>  $statuses
      * @return array{present: int, absent: int, unrecorded: int}
      */
-    private function summarize(Collection $rows): array
+    private function summarize(Collection $statuses): array
     {
-        $statuses = $rows->map(
-            fn (array $row) => $row['kind'] === 'regular' ? $row['status'] : $row['makeupStatus']
-        );
-
         return [
             'present' => $statuses->filter(fn ($status) => $status === '出席')->count(),
             'absent' => $statuses->filter(fn ($status) => $status === '欠席')->count(),

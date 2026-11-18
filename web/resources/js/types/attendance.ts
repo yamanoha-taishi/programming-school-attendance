@@ -27,7 +27,16 @@ export type RegularRowData = AttendanceRowBase & {
     makeupStatus: string | null; // 補講先での出欠（未記録ならnull）
     recordedBy: string | null; // 記録したスタッフの名前（スタッフがまだ対応していなければnull）
     isNotice: boolean; // 保護者からの事前連絡で、スタッフがまだ対応していない記録か
-    hasMakeup: boolean;
+    catchUp: CatchUpData | null; // 自分のクラスのこの回に30分前補講でも来る場合の、補講の情報
+};
+
+// 自分のクラスの回に、別の日の欠席分の30分前補講で来るときの補講の情報（通常の行にまとめて出す）
+export type CatchUpData = {
+    attendanceId: number; // 元の欠席記録のID（補講先での出欠を記録するときに使う）
+    makeupType: string;
+    absentDate: string; // 何日の欠席分の補講か
+    makeupStatus: string | null; // 補講先での出欠（未記録ならnull）
+    note: string | null; // 欠席した日の保護者からの連絡事項
 };
 
 // 「来る側」の行
@@ -46,8 +55,10 @@ export type AttendanceBlockData = {
     title: string;
     startTime: string;
     endTime: string;
-    summary: AttendanceSummary;
-    rows: AttendanceRowData[];
+    rows: RegularRowData[]; // このブロックに所属する生徒の行
+    makeupRows: MakeupRowData[]; // ほかの回から補講で来る生徒の行
+    summary: AttendanceSummary; // 所属する生徒の出欠
+    makeupSummary: AttendanceSummary; // ほかの回から補講で来る生徒の、補講先での出欠
     makeupCandidates: MakeupCandidate[]; // このブロックの生徒が欠席したときの補講先の候補
 };
 
