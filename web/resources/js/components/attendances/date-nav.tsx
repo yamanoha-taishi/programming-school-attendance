@@ -10,34 +10,33 @@ import {
 } from '@/components/ui/sheet';
 import { formatDateLabel, formatMonthDay } from '@/lib/date-format';
 import { index } from '@/routes/admin/attendances';
-import type { UpcomingHoliday } from '@/types/attendance';
+import type { CalendarData, UpcomingHoliday } from '@/types/attendance';
 
 export default function DateNav({
     date,
     today,
-    lessonDates,
+    prevDate,
+    nextDate,
+    firstSelectableDate,
+    lastSelectableDate,
+    calendar,
     advanceUntil,
     advanceWeeks,
-    weekLessonNos,
-    holidayWeeks,
     lessonNos,
     upcomingHolidays,
 }: {
     date: string;
     today: string;
-    lessonDates: string[]; // 選べる授業日（新しい順）。5週間後までの授業日と、それより先で記録がある日
+    prevDate: string | null; // ◀で移る、前の選べる授業日
+    nextDate: string | null; // ▶で移る、次の選べる授業日
+    firstSelectableDate: string | null; // 選べる授業日の最初
+    lastSelectableDate: string | null; // 選べる授業日の最後
+    calendar: CalendarData; // 表示中の日付の年度のカレンダー
     advanceUntil: string; // 事前に登録できる期限の目安（今日から5週間後）
     advanceWeeks: number; // 事前に登録できる期限が、今日から何週間後か
-    weekLessonNos: Record<string, number>; // 週ごとの第何回か（キーは月曜日の日付）
-    holidayWeeks: Record<string, string>; // 休校の週と理由（キーは月曜日の日付）
     lessonNos: number[]; // 授業計画上の第何回か（ふつうは1つ）
     upcomingHolidays: UpcomingHoliday[]; // 今後の休校（近い順に最大3件）
 }) {
-    // 前の授業日：今の日付より古い日付のうち、いちばん新しいもの
-    const prevDate = lessonDates.find((d) => d < date);
-    // 次の授業日：今の日付より新しい日付のうち、いちばん古いもの
-    const nextDate = lessonDates.filter((d) => d > date).at(-1);
-
     // ◀ ▶：日付を移動する操作なので、日付のボタン・「今日」と同じ青にそろえる
     const arrowClass =
         'flex h-8 items-center rounded-md border border-primary bg-card px-2 text-primary';
@@ -121,9 +120,9 @@ export default function DateNav({
                         <DateCalendar
                             date={date}
                             today={today}
-                            lessonDates={lessonDates}
-                            weekLessonNos={weekLessonNos}
-                            holidayWeeks={holidayWeeks}
+                            firstSelectableDate={firstSelectableDate}
+                            lastSelectableDate={lastSelectableDate}
+                            calendar={calendar}
                         />
 
                         <SheetClose className="h-11 rounded-lg border border-border text-sm font-bold">

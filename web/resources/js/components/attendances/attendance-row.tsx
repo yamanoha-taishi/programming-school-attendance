@@ -222,6 +222,8 @@ export default function AttendanceRow({
     function send(url: string, data: Record<string, string | number>) {
         router.patch(url, data, {
             preserveScroll: true, // 画面の一番上に戻らないようにする
+            // 日付選択のカレンダーのデータ（1年度分）は受け取り直さない。次に日付を切り替えたときに新しくなる
+            except: ['calendar'],
             onSuccess: () => {
                 // 保存できたら行を折りたたみ、補講予定の選択欄とモーダルも閉じる
                 setIsOpen(false);

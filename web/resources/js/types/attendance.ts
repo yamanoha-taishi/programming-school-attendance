@@ -51,6 +51,14 @@ export type AttendanceBlockData = {
     makeupCandidates: MakeupCandidate[]; // このブロックの生徒が欠席したときの補講先の候補
 };
 
+// 日付選択のカレンダーのデータ。1年度分（4月〜翌3月）の月を含む週の範囲
+export type CalendarData = {
+    months: string[]; // 読み込んだ月（"2026-04" の形）。1年度分（4月〜翌3月）
+    lessonDates: string[]; // 選べる授業日（古い順）
+    weekLessonNos: Record<string, number>; // 週ごとの第何回か（キーは月曜日の日付）
+    holidayWeeks: Record<string, string>; // 休校の週と理由（キーは月曜日の日付）
+};
+
 // 今後の休校（全体の休校だけ）を、期間ごとにまとめたもの
 export type UpcomingHoliday = {
     reason: string; // 休校理由（年末年始など）

@@ -6,17 +6,20 @@ import DaySummary from '@/components/attendances/day-summary';
 import type {
     AttendanceBlockData,
     AttendanceSummary,
+    CalendarData,
     UpcomingHoliday,
 } from '@/types/attendance';
 
 type Props = {
     date: string;
     today: string;
-    lessonDates: string[]; // 選べる授業日（新しい順）。5週間後までの授業日と、それより先で記録がある日
+    prevDate: string | null; // ◀で移る、前の選べる授業日
+    nextDate: string | null; // ▶で移る、次の選べる授業日
+    firstSelectableDate: string | null; // 選べる授業日の最初（カレンダーで前の月へ移れる範囲）
+    lastSelectableDate: string | null; // 選べる授業日の最後（カレンダーで次の月へ移れる範囲）
+    calendar: CalendarData; // 表示中の日付の年度のカレンダー
     advanceUntil: string; // 事前に登録できる期限の目安（今日から5週間後）
     advanceWeeks: number; // 事前に登録できる期限が、今日から何週間後か
-    weekLessonNos: Record<string, number>; // 週ごとの授業計画上の第何回か（キーは月曜日の日付）
-    holidayWeeks: Record<string, string>; // 休校の週と理由（キーは月曜日の日付）
     upcomingHolidays: UpcomingHoliday[]; // 今後の休校（近い順に最大3件）
     isFuture: boolean; // まだ来ていない日か（未来の日付では、欠席の事前登録だけできる）
     daySummary: AttendanceSummary;
@@ -27,11 +30,13 @@ type Props = {
 export default function AttendancesIndex({
     date,
     today,
-    lessonDates,
+    prevDate,
+    nextDate,
+    firstSelectableDate,
+    lastSelectableDate,
+    calendar,
     advanceUntil,
     advanceWeeks,
-    weekLessonNos,
-    holidayWeeks,
     upcomingHolidays,
     isFuture,
     daySummary,
@@ -46,11 +51,13 @@ export default function AttendancesIndex({
                 <DateNav
                     date={date}
                     today={today}
-                    lessonDates={lessonDates}
+                    prevDate={prevDate}
+                    nextDate={nextDate}
+                    firstSelectableDate={firstSelectableDate}
+                    lastSelectableDate={lastSelectableDate}
+                    calendar={calendar}
                     advanceUntil={advanceUntil}
                     advanceWeeks={advanceWeeks}
-                    weekLessonNos={weekLessonNos}
-                    holidayWeeks={holidayWeeks}
                     lessonNos={lessonNos}
                     upcomingHolidays={upcomingHolidays}
                 />

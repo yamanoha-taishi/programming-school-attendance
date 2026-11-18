@@ -21,7 +21,7 @@ use Tests\TestCase;
 
 /**
  * 出席記録・一覧画面（admin.attendances.index）のテスト。
- * 表示する日付の決め方と、日付の切り替えに使う授業日の一覧、日付選択のカレンダー（週ごとの第何回か・休校の週）、補講先の候補、授業計画上の第何回か、授業実施単位ごとのブロック・生徒の行の組み立て、出欠サマリーを確認する。
+ * 表示する日付の決め方と、日付の切り替え（◀ ▶・選べる授業日の範囲）、日付選択のカレンダー（表示中の日付の年度の授業日・週ごとの第何回か・休校の週）、補講先の候補、授業計画上の第何回か、授業実施単位ごとのブロック・生徒の行の組み立て、出欠サマリーを確認する。
  * 仕様はルーティング設計の「出席記録・一覧画面の詳細」、要件定義書5.4を参照。
  */
 class AttendanceIndexTest extends TestCase
@@ -112,24 +112,42 @@ class AttendanceIndexTest extends TestCase
     }
 
     // ------------------------------------------------------------
-    // 日付の切り替え（◀ ▶・日付一覧）に使う授業日の一覧
+    // 日付の切り替え（◀ ▶）と、選べる授業日の範囲
     // ------------------------------------------------------------
 
-    public function test_lesson_dates_are_lesson_days_up_to_five_weeks_later_in_descending_order()
+    public function test_prev_and_next_dates_are_the_nearest_selectable_lesson_days()
     {
         // 今日は9/26（土）。5週間後は10/31（土）。
-        // 作成順ではなく新しい順に並び、記録が無くても5週間後（10/31）までの授業日は含まれ、それより後の11/7は含まれないことを確認する
+        // 記録が無くても5週間後（10/31）までの授業日は選べ、それより後の11/7は選べない
         $this->createLessonOn('2026-09-23');
         $this->createLessonOn('2026-11-07');
         $this->createLessonOn('2026-10-31');
         $this->createLessonOn('2026-09-16');
         $this->createLessonOn('2026-09-26');
 
-        // 表示している日付（9/16）に関係なく、一覧は同じになる
-        $response = $this->getAttendances('2026-09-16');
+        $response = $this->getAttendances('2026-09-23');
 
         $response->assertInertia(fn ($page) => $page
-            ->where('lessonDates', ['2026-10-31', '2026-09-26', '2026-09-23', '2026-09-16'])
+            ->where('prevDate', '2026-09-16')
+            ->where('nextDate', '2026-09-26')
+            ->where('firstSelectableDate', '2026-09-16')
+            ->where('lastSelectableDate', '2026-10-31')
+        );
+    }
+
+    public function test_prev_and_next_dates_are_null_at_both_ends()
+    {
+        $this->createLessonOn('2026-09-16');
+        $this->createLessonOn('2026-10-31');
+        $this->createLessonOn('2026-11-07'); // 5週間後より先で、記録が無い授業日
+
+        $this->getAttendances('2026-09-16')->assertInertia(fn ($page) => $page
+            ->where('prevDate', null)
+            ->where('nextDate', '2026-10-31')
+        );
+        $this->getAttendances('2026-10-31')->assertInertia(fn ($page) => $page
+            ->where('prevDate', '2026-09-16')
+            ->where('nextDate', null)
         );
     }
 
@@ -145,21 +163,7 @@ class AttendanceIndexTest extends TestCase
         );
     }
 
-    public function test_lesson_dates_have_no_duplicates_when_there_are_multiple_lessons_on_the_same_day()
-    {
-        // 9/19に、土曜A1と土曜B（B1・B2）の3件の授業回がある
-        $this->createLesson('2026-09-19', 'A1', 'A1');
-        $this->createLesson('2026-09-19', 'B', 'B1');
-        $this->createLesson('2026-09-19', 'B', 'B2');
-
-        $response = $this->getAttendances('2026-09-19');
-
-        $response->assertInertia(fn ($page) => $page
-            ->where('lessonDates', ['2026-09-19'])
-        );
-    }
-
-    public function test_lesson_dates_are_empty_when_there_are_no_lessons_up_to_five_weeks_later()
+    public function test_selectable_dates_are_null_when_there_are_no_lessons_up_to_five_weeks_later()
     {
         // 授業日が5週間後（10/31）より先にしか無く、記録も無い場合
         $this->createLessonOn('2026-11-07');
@@ -168,11 +172,15 @@ class AttendanceIndexTest extends TestCase
             ->get(route('admin.attendances.index'));
 
         $response->assertInertia(fn ($page) => $page
-            ->where('lessonDates', [])
+            ->where('prevDate', null)
+            ->where('nextDate', null)
+            ->where('firstSelectableDate', null)
+            ->where('lastSelectableDate', null)
+            ->where('calendar.lessonDates', [])
         );
     }
 
-    public function test_lesson_dates_after_five_weeks_with_records_are_included()
+    public function test_lesson_days_after_five_weeks_with_records_are_selectable()
     {
         // 今日は9/26（土）。5週間後は10/31（土）。
         // 土曜A1の生徒が10/24を休み、11/7（5週間後より先）に30分前補講で来る予定。
@@ -191,17 +199,90 @@ class AttendanceIndexTest extends TestCase
             'makeup_type' => '未定',
         ]);
 
-        $response = $this->getAttendances('2026-09-26');
-
-        // 補講で来る予定の日（11/7）と事前連絡がある日（11/10）は入り、記録が無い日（11/14）は入らない
-        $response->assertInertia(fn ($page) => $page
-            ->where('lessonDates', ['2026-11-10', '2026-11-07', '2026-10-24'])
+        // 補講で来る予定の日（11/7）と事前連絡がある日（11/10）は選べ、記録が無い日（11/14）は選べない
+        $this->getAttendances('2026-10-24')->assertInertia(fn ($page) => $page
+            ->where('nextDate', '2026-11-07')
+            ->where('lastSelectableDate', '2026-11-10')
+        );
+        $this->getAttendances('2026-11-10')->assertInertia(fn ($page) => $page
+            ->where('nextDate', null)
+            ->where('calendar.lessonDates', ['2026-10-24', '2026-11-07', '2026-11-10'])
         );
     }
 
     // ------------------------------------------------------------
-    // 日付選択のモーダルのカレンダー（週ごとの第何回か・休校の週）
+    // 日付選択のモーダルのカレンダー（表示中の日付の年度の分だけ）
     // ------------------------------------------------------------
+
+    public function test_calendar_has_lesson_days_of_the_fiscal_year_in_ascending_order()
+    {
+        // 9/26は2026年度（2026/4〜2027/3）。3/30（月）〜2027/4/4（日）の週を出す
+        $this->createLessonOn('2026-03-28'); // 範囲より前（2025年度）
+        $this->createLessonOn('2026-09-26');
+        $this->createLessonOn('2026-04-04');
+        $this->createLessonOn('2026-10-31');
+        $this->createLessonOn('2026-11-07'); // 5週間後より先で、記録が無い授業日
+
+        $response = $this->getAttendances('2026-09-26');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('calendar.months', [
+                '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09',
+                '2026-10', '2026-11', '2026-12', '2027-01', '2027-02', '2027-03',
+            ])
+            ->where('calendar.lessonDates', ['2026-04-04', '2026-09-26', '2026-10-31'])
+        );
+    }
+
+    public function test_calendar_of_january_to_march_is_the_fiscal_year_from_the_previous_april()
+    {
+        // 2026/2/7は2025年度（2025/4〜2026/3）。年度の終わりが今日（9/26）より前なので、5週間後までは延ばさない
+        $this->createLessonOn('2026-02-07');
+        $this->createLessonOn('2025-04-05');
+        $this->createLessonOn('2026-04-11'); // 範囲より後（3/30〜4/5の週の次の週）
+
+        $response = $this->getAttendances('2026-02-07');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('calendar.months.0', '2025-04')
+            ->where('calendar.months.11', '2026-03')
+            ->count('calendar.months', 12)
+            ->where('calendar.lessonDates', ['2025-04-05', '2026-02-07'])
+        );
+    }
+
+    public function test_calendar_is_extended_to_five_weeks_later_when_it_is_in_the_next_fiscal_year()
+    {
+        // 今日を2027/3/13（土）にする。5週間後は4/17（土）で、次の年度に入る
+        $this->travelTo(Carbon::parse('2027-03-13 10:00:00'));
+        $this->createLessonOn('2027-03-13');
+        $this->createLessonOn('2027-04-17');
+        $this->createLessonOn('2027-04-24'); // 5週間後より先で、記録が無い授業日
+
+        $response = $this->getAttendances('2027-03-13');
+
+        // 2026/4〜2027/4の13か月分
+        $response->assertInertia(fn ($page) => $page
+            ->where('calendar.months.0', '2026-04')
+            ->where('calendar.months.12', '2027-04')
+            ->count('calendar.months', 13)
+            ->where('calendar.lessonDates', ['2027-03-13', '2027-04-17'])
+        );
+    }
+
+    public function test_calendar_lesson_dates_have_no_duplicates_when_there_are_multiple_lessons_on_the_same_day()
+    {
+        // 9/19に、土曜A1と土曜B（B1・B2）の3件の授業回がある
+        $this->createLesson('2026-09-19', 'A1', 'A1');
+        $this->createLesson('2026-09-19', 'B', 'B1');
+        $this->createLesson('2026-09-19', 'B', 'B2');
+
+        $response = $this->getAttendances('2026-09-19');
+
+        $response->assertInertia(fn ($page) => $page
+            ->where('calendar.lessonDates', ['2026-09-19'])
+        );
+    }
 
     public function test_week_lesson_nos_are_keyed_by_monday_of_the_week()
     {
@@ -213,7 +294,7 @@ class AttendanceIndexTest extends TestCase
 
         // キーはその週の月曜日。授業が無い週（9/21〜9/27）は入らない
         $response->assertInertia(fn ($page) => $page
-            ->where('weekLessonNos', ['2026-09-14' => 1, '2026-09-28' => 2])
+            ->where('calendar.weekLessonNos', ['2026-09-14' => 1, '2026-09-28' => 2])
         );
     }
 
@@ -227,7 +308,7 @@ class AttendanceIndexTest extends TestCase
         $response = $this->getAttendances('2026-09-26');
 
         $response->assertInertia(fn ($page) => $page
-            ->where('weekLessonNos', ['2026-09-21' => 1, '2026-09-28' => 1])
+            ->where('calendar.weekLessonNos', ['2026-09-21' => 1, '2026-09-28' => 1])
         );
     }
 
@@ -249,15 +330,53 @@ class AttendanceIndexTest extends TestCase
             'date' => '2026-11-28',
             'reason' => '教室の設備点検',
         ]);
+        // 範囲（2026年度）より後
+        Holiday::create(['section_id' => null, 'date' => '2027-05-04', 'reason' => 'ゴールデンウィーク']);
 
         $response = $this->getAttendances('2026-09-26');
 
         $response->assertInertia(fn ($page) => $page
-            ->where('holidayWeeks', [
+            ->where('calendar.holidayWeeks', [
                 '2026-09-21' => '敬老の日・秋分の日',
                 '2026-11-02' => '文化の日',
             ])
         );
+    }
+
+    public function test_calendar_of_another_fiscal_year_is_returned_as_json()
+    {
+        // 2025/5を指定すると、2025年度（2025/4〜2026/3）の分を返す
+        $this->createLesson('2025-05-10', 'A1', 'A1');
+        $this->createLesson('2026-03-28', 'A1', 'A1');
+        $this->createLesson('2026-09-26', 'A1', 'A1'); // 範囲より後
+        Holiday::create(['section_id' => null, 'date' => '2025-05-03', 'reason' => '憲法記念日']);
+
+        $response = $this->actingAs($this->staff, 'staff')
+            ->getJson(route('admin.attendances.calendar', ['month' => '2025-05']));
+
+        $response->assertOk()->assertExactJson([
+            'months' => [
+                '2025-04', '2025-05', '2025-06', '2025-07', '2025-08', '2025-09',
+                '2025-10', '2025-11', '2025-12', '2026-01', '2026-02', '2026-03',
+            ],
+            'lessonDates' => ['2025-05-10', '2026-03-28'],
+            'weekLessonNos' => ['2025-05-05' => 1, '2026-03-23' => 2],
+            'holidayWeeks' => ['2025-04-28' => '憲法記念日'],
+        ]);
+    }
+
+    public function test_calendar_month_must_be_year_and_month()
+    {
+        foreach (['2026-13', '2026-10-01', 'abc'] as $month) {
+            $this->actingAs($this->staff, 'staff')
+                ->getJson(route('admin.attendances.calendar', ['month' => $month]))
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('month');
+        }
+
+        $this->actingAs($this->staff, 'staff')
+            ->getJson(route('admin.attendances.calendar'))
+            ->assertJsonValidationErrors('month');
     }
 
     public function test_is_future_tells_whether_the_date_has_not_come_yet()

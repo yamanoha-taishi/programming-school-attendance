@@ -10,6 +10,8 @@ use App\Models\Lesson;
 use App\Models\Section;
 use App\Models\Staff;
 use App\Models\Student;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -76,19 +78,23 @@ class AttendanceController extends Controller
             ->values();
 
         $today = Carbon::today();
-        $advanceUntil = $today->copy()->addWeeks(self::ADVANCE_WEEKS)->toDateString();
-        $weekLessonNos = $this->weekLessonNos();
+        $advanceUntil = $this->advanceUntil();
 
         return Inertia::render('admin/attendances/index', [
             'date' => $date,
             'today' => $today->toDateString(),
-            'lessonDates' => $this->lessonDates($advanceUntil),
+            // ◀ ▶で移る、前後の選べる授業日（無ければnull）
+            'prevDate' => $this->toDateString($this->selectableLessons($advanceUntil)->whereDate('date', '<', $date)->max('date')),
+            'nextDate' => $this->toDateString($this->selectableLessons($advanceUntil)->whereDate('date', '>', $date)->min('date')),
+            // 選べる授業日の最初と最後（日付選択のカレンダーで、前後の月へ移れる範囲を決めるのに使う）
+            'firstSelectableDate' => $this->toDateString($this->selectableLessons($advanceUntil)->min('date')),
+            'lastSelectableDate' => $this->toDateString($this->selectableLessons($advanceUntil)->max('date')),
+            // 表示中の日付の年度のカレンダー（ほかの年度は、カレンダーで移ったときにcalendarで読み込む）。
+            // 記録を保存したあとは画面側で受け取らない（except）ため、関数にして、受け取るときだけ作る
+            'calendar' => fn () => $this->calendarFiscalYear(Carbon::parse($date), $advanceUntil),
             // 事前に登録できる期限の目安（日付選択のモーダルのお知らせに出す）
             'advanceUntil' => $advanceUntil,
             'advanceWeeks' => self::ADVANCE_WEEKS,
-            'weekLessonNos' => $weekLessonNos,
-            // 授業がある週は休校の週にしない（授業実施単位ごとの休校日だけの週など）
-            'holidayWeeks' => array_diff_key($this->holidayWeeks(), $weekLessonNos),
             'upcomingHolidays' => $this->upcomingHolidays(),
             // まだ来ていない日か。未来の日付では、事前に登録できる欠席（と補講予定）だけを受け付ける
             'isFuture' => $date > $today->toDateString(),
@@ -100,6 +106,21 @@ class AttendanceController extends Controller
                 'unrecorded' => $blocks->sum('summary.unrecorded'),
             ],
         ]);
+    }
+
+    /**
+     * 日付選択のカレンダーで、まだ読み込んでいない年度の月に移ったときに、その月を含む年度の分のデータを返す（?month=YYYY-MM）。
+     * すべての授業回を一度に渡すと年々増え続けるため、年度ごとに読み込む。
+     */
+    public function calendar(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'month' => ['required', 'date_format:Y-m'],
+        ]);
+
+        $month = Carbon::parse("{$validated['month']}-01")->startOfDay();
+
+        return response()->json($this->calendarFiscalYear($month, $this->advanceUntil()));
     }
 
     public function update(Request $request, Lesson $lesson, Student $student): RedirectResponse
@@ -227,25 +248,85 @@ class AttendanceController extends Controller
     }
 
     /**
-     * 日付の切り替え（◀ ▶・日付選択のモーダル）で選べる授業日の一覧（新しい順）。
-     * - 事前に登録できる期限（今日から5週間後）までの授業日：今日以前の授業日と、電話などで受けた欠席を事前に登録するための未来の授業日
-     * - それより先の授業日のうち、記録が登録されている日（保護者からの欠席・遅刻の事前連絡がある日と、振替・30分前補講で来る予定の生徒がいる日）
+     * 事前に登録できる期限の目安（今日から5週間後）。
+     */
+    private function advanceUntil(): string
+    {
+        return Carbon::today()->addWeeks(self::ADVANCE_WEEKS)->toDateString();
+    }
+
+    /**
+     * 日付の切り替え（◀ ▶・日付選択のモーダル）で選べる授業回。
+     * - 事前に登録できる期限（今日から5週間後）までの授業回：今日以前の授業回と、電話などで受けた欠席を事前に登録するための未来の授業回
+     * - それより先の授業回のうち、記録が登録されているもの（保護者からの欠席・遅刻の事前連絡がある回と、振替・30分前補講で来る予定の生徒がいる回）
      * 期限は目安で、それより先でも記録がある日を開けば、ほかの生徒の欠席も事前に登録できる。
      *
      * @param  string  $advanceUntil  事前に登録できる期限の日付
-     * @return Collection<int, string>
+     * @return Builder<Lesson>
      */
-    private function lessonDates(string $advanceUntil): Collection
+    private function selectableLessons(string $advanceUntil): Builder
     {
         return Lesson::where(fn ($query) => $query
             ->whereDate('date', '<=', $advanceUntil)
             ->orWhereHas('attendances')
-            ->orWhereHas('makeupAttendances'))
-            ->orderByDesc('date')
-            ->pluck('date')
-            ->map(fn ($date) => Carbon::parse($date)->toDateString())
-            ->unique()
-            ->values();
+            ->orWhereHas('makeupAttendances'));
+    }
+
+    /**
+     * DBから取り出した日付（文字列やCarbon）を「2026-10-03」の形にする。nullならnull。
+     */
+    private function toDateString(mixed $date): ?string
+    {
+        return $date === null ? null : Carbon::parse($date)->toDateString();
+    }
+
+    /**
+     * 日付選択のカレンダーの、1年度分（4月〜翌3月）のデータ。
+     * 今の年度で、事前に登録できる期限（今日から5週間後）が次の年度に入るとき（3月ごろ）は、その月まで延ばす。
+     * カレンダーには月の最初と最後の週の、前後の月の日も出すため、最初の月の1日を含む週の月曜日〜最後の月の末日を含む週の日曜日の範囲で読み込む。
+     *
+     * @param  Carbon  $date  年度を決める日付
+     * @return array{months: list<string>, lessonDates: list<string>, weekLessonNos: array<string, int>, holidayWeeks: array<string, string>}
+     */
+    private function calendarFiscalYear(Carbon $date, string $advanceUntil): array
+    {
+        // 年度の始まり（4月1日）と終わり（翌年の3月31日）
+        $fiscalYear = $date->month >= 4 ? $date->year : $date->year - 1;
+        $firstMonth = Carbon::parse("{$fiscalYear}-04-01");
+        $lastMonth = $firstMonth->copy()->addMonths(11);
+
+        // 今の年度（年度の終わりが今日以降）で、5週間後が次の年度に入るときは、その月まで延ばす
+        $advanceMonth = Carbon::parse($advanceUntil)->startOfMonth();
+        if ($lastMonth->copy()->endOfMonth()->gte(Carbon::today()) && $advanceMonth->gt($lastMonth)) {
+            $lastMonth = $advanceMonth;
+        }
+
+        $months = [];
+        for ($month = $firstMonth->copy(); $month->lte($lastMonth); $month->addMonth()) {
+            $months[] = $month->format('Y-m');
+        }
+
+        $from = $firstMonth->copy()->startOfWeek(Carbon::MONDAY)->toDateString();
+        $until = $lastMonth->copy()->endOfMonth()->endOfWeek(Carbon::SUNDAY)->toDateString();
+
+        $weekLessonNos = $this->weekLessonNos($from, $until);
+
+        return [
+            // 読み込んだ月（"2026-04" の形）
+            'months' => $months,
+            // その範囲の選べる授業日（古い順）
+            'lessonDates' => array_values($this->selectableLessons($advanceUntil)
+                ->whereDate('date', '>=', $from)
+                ->whereDate('date', '<=', $until)
+                ->orderBy('date')
+                ->pluck('date')
+                ->map(fn ($date) => Carbon::parse($date)->toDateString())
+                ->unique()
+                ->all()),
+            'weekLessonNos' => $weekLessonNos,
+            // 授業がある週は休校の週にしない（授業実施単位ごとの休校日だけの週など）
+            'holidayWeeks' => array_diff_key($this->holidayWeeks($from, $until), $weekLessonNos),
+        ];
     }
 
     /**
@@ -255,9 +336,11 @@ class AttendanceController extends Controller
      *
      * @return array<string, int>
      */
-    private function weekLessonNos(): array
+    private function weekLessonNos(string $from, string $until): array
     {
         return Lesson::with('lessonPlan:id,no')
+            ->whereDate('date', '>=', $from)
+            ->whereDate('date', '<=', $until)
             ->get(['id', 'date', 'lesson_plan_id'])
             ->groupBy(fn (Lesson $lesson) => $lesson->date->copy()->startOfWeek(Carbon::MONDAY)->toDateString())
             ->map(fn (Collection $weekLessons) => (int) $weekLessons->min(fn (Lesson $lesson) => $lesson->lessonPlan->no))
@@ -271,9 +354,11 @@ class AttendanceController extends Controller
      *
      * @return array<string, string>
      */
-    private function holidayWeeks(): array
+    private function holidayWeeks(string $from, string $until): array
     {
         return Holiday::whereNull('section_id')
+            ->whereDate('date', '>=', $from)
+            ->whereDate('date', '<=', $until)
             ->orderBy('date')
             ->get()
             ->groupBy(fn (Holiday $holiday) => $holiday->date->copy()->startOfWeek(Carbon::MONDAY)->toDateString())

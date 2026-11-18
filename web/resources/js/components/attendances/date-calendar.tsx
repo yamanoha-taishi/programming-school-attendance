@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { SheetClose } from '@/components/ui/sheet';
 import {
     addDays,
@@ -10,7 +11,8 @@ import {
     startOfWeek,
 } from '@/lib/date-format';
 import { cn } from '@/lib/utils';
-import { index } from '@/routes/admin/attendances';
+import { calendar as calendarRoute, index } from '@/routes/admin/attendances';
+import type { CalendarData } from '@/types/attendance';
 
 const WEEKDAYS = ['月', '火', '水', '木', '金', '土', '日'];
 
@@ -20,24 +22,61 @@ const weekGridClass = 'grid grid-cols-[3rem_repeat(7,1fr)] items-center gap-1';
 export default function DateCalendar({
     date,
     today,
-    lessonDates,
-    weekLessonNos,
-    holidayWeeks,
+    firstSelectableDate,
+    lastSelectableDate,
+    calendar,
 }: {
     date: string; // 表示中の日付
     today: string;
-    lessonDates: string[]; // 選べる授業日（新しい順）
-    weekLessonNos: Record<string, number>; // 週ごとの第何回か（キーは月曜日の日付）
-    holidayWeeks: Record<string, string>; // 休校の週と理由（キーは月曜日の日付）
+    firstSelectableDate: string | null; // 選べる授業日の最初
+    lastSelectableDate: string | null; // 選べる授業日の最後
+    calendar: CalendarData; // 表示中の日付の年度のカレンダー
 }) {
     // 表示している月（その月の1日）。表示中の日付の月から始める
     const [month, setMonth] = useState(startOfMonth(date));
 
-    const selectable = new Set(lessonDates);
+    // 読み込んだカレンダーのデータ。表示中の日付の年度の分は、最初から画面と一緒に受け取っている
+    const [loaded, setLoaded] = useState<CalendarData>(calendar);
+
+    // 表示している月を読み込み済みか。まだ読み込み中なら、選べる日・回数・休校の無い空のカレンダーを出す
+    const isLoaded = loaded.months.includes(month.slice(0, 7));
+    const selectable = new Set(isLoaded ? loaded.lessonDates : []);
+    const weekLessonNos = isLoaded ? loaded.weekLessonNos : {};
+    const holidayWeeks = isLoaded ? loaded.holidayWeeks : {};
+
+    // 月を移る。その月をまだ読み込んでいなければ（ほかの年度の月なら）、その年度の分をサーバーから読み込む
+    // （すべての授業回を一度に受け取ると年々増えるため、年度ごとに読み込む）
+    function goToMonth(nextMonthStart: string) {
+        setMonth(nextMonthStart);
+
+        if (loaded.months.includes(nextMonthStart.slice(0, 7))) {
+            return;
+        }
+
+        fetch(
+            calendarRoute({ query: { month: nextMonthStart.slice(0, 7) } }).url,
+            { headers: { Accept: 'application/json' } },
+        )
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error(String(response.status));
+                }
+
+                return response.json() as Promise<CalendarData>;
+            })
+            .then((data) =>
+                setLoaded((current) => mergeCalendar(current, data)),
+            )
+            .catch(() =>
+                toast.error('カレンダーを読み込めませんでした', {
+                    id: 'calendar-error',
+                }),
+            );
+    }
 
     // 移動できる月の範囲：選べる日がある最初の月〜最後の月（表示中の日付の月は必ず含める）
-    const firstMonth = startOfMonth(lessonDates.at(-1) ?? date);
-    const lastMonth = startOfMonth(lessonDates[0] ?? date);
+    const firstMonth = startOfMonth(firstSelectableDate ?? date);
+    const lastMonth = startOfMonth(lastSelectableDate ?? date);
     const minMonth =
         firstMonth < startOfMonth(date) ? firstMonth : startOfMonth(date);
     const maxMonth =
@@ -66,7 +105,7 @@ export default function DateCalendar({
                     type="button"
                     className={arrowClass}
                     disabled={prevMonth < minMonth}
-                    onClick={() => setMonth(prevMonth)}
+                    onClick={() => goToMonth(prevMonth)}
                     aria-label="前の月"
                 >
                     <ChevronLeft className="size-4" />
@@ -78,7 +117,7 @@ export default function DateCalendar({
                     type="button"
                     className={arrowClass}
                     disabled={nextMonth > maxMonth}
-                    onClick={() => setMonth(nextMonth)}
+                    onClick={() => goToMonth(nextMonth)}
                     aria-label="次の月"
                 >
                     <ChevronRight className="size-4" />
@@ -239,6 +278,21 @@ function DayCell({
             </Link>
         </SheetClose>
     );
+}
+
+// 読み込んだカレンダーのデータに、新しく読み込んだ年度の分を足す（同じものは1つにまとめる）
+function mergeCalendar(
+    current: CalendarData,
+    added: CalendarData,
+): CalendarData {
+    return {
+        months: [...new Set([...current.months, ...added.months])],
+        lessonDates: [
+            ...new Set([...current.lessonDates, ...added.lessonDates]),
+        ],
+        weekLessonNos: { ...current.weekLessonNos, ...added.weekLessonNos },
+        holidayWeeks: { ...current.holidayWeeks, ...added.holidayWeeks },
+    };
 }
 
 // マスに出す日付。月の切れ目がわかるよう、1日だけ月も付ける（"2026-11-01" → "11/1"、"2026-11-02" → "2"）
