@@ -134,6 +134,47 @@ class AttendanceUpdateTest extends TestCase
         $this->assertDatabaseCount('attendances', 0);
     }
 
+    public function test_student_on_leave_is_rejected()
+    {
+        // 9/1〜10/31の休会中に、10/3の欠席を記録しようとする
+        $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $student = $this->createStudent('A1', 'A1');
+        $student->update(['leave_from' => '2026-09-01', 'leave_until' => '2026-10-31']);
+
+        $response = $this->patchAttendance($lesson, $student, ['status' => '欠席', 'makeup_type' => '未定']);
+
+        $response->assertSessionHasErrors(['status' => '休会中の生徒には記録できません。']);
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_student_on_leave_without_end_date_is_rejected()
+    {
+        // 休会終了日が無い（いつまで休むか決まっていない）休会中は、開始日の当日から記録できない
+        $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $student = $this->createStudent('A1', 'A1');
+        $student->update(['leave_from' => '2026-10-03', 'leave_until' => null]);
+
+        $response = $this->patchAttendance($lesson, $student, ['status' => '出席']);
+
+        $response->assertSessionHasErrors('status');
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    public function test_student_outside_of_leave_is_recorded()
+    {
+        // 休会が10/2に終わった生徒と、10/4から始まる生徒は、10/3の記録ができる
+        $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $endedStudent = $this->createStudent('A1', 'A1');
+        $endedStudent->update(['leave_from' => '2026-09-01', 'leave_until' => '2026-10-02']);
+        $upcomingStudent = $this->createStudent('A1', 'A1');
+        $upcomingStudent->update(['leave_from' => '2026-10-04', 'leave_until' => null]);
+
+        $this->patchAttendance($lesson, $endedStudent, ['status' => '出席'])->assertSessionHasNoErrors();
+        $this->patchAttendance($lesson, $upcomingStudent, ['status' => '出席'])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseCount('attendances', 2);
+    }
+
     public function test_invalid_status_is_rejected()
     {
         $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');

@@ -80,6 +80,17 @@ class Student extends Model
     }
 
     /**
+     * 指定した日に休会中か。休会開始日を過ぎていて、休会終了日が無い／まだ過ぎていなければ休会中。
+     * 判定のしかたは scopeNotOnLeave() と同じ。
+     */
+    public function isOnLeave(string $date): bool
+    {
+        return $this->leave_from !== null
+            && $this->leave_from->toDateString() <= $date
+            && ($this->leave_until === null || $this->leave_until->toDateString() >= $date);
+    }
+
+    /**
      * 指定した日に休会中ではない生徒に絞り込む。
      * 休会開始日が無い／まだ来ていない／休会終了日が過ぎている、のいずれかなら休会中ではない。
      *

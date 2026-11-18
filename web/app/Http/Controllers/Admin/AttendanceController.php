@@ -138,6 +138,13 @@ class AttendanceController extends Controller
             404,
         );
 
+        // 休会中の生徒は一覧に出さないので、記録も受け付けない
+        if ($student->isOnLeave($lesson->date->toDateString())) {
+            throw ValidationException::withMessages([
+                'status' => '休会中の生徒には記録できません。',
+            ]);
+        }
+
         // まだ来ていない授業回には、出席は記録できない（欠席と補講予定は、事前に登録できる）
         if ($validated['status'] === '出席' && $lesson->date->isAfter(Carbon::today())) {
             throw ValidationException::withMessages([
