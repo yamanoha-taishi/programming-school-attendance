@@ -11,7 +11,6 @@ type AttendanceRowBase = {
     nameKana: string;
     schoolClassName: string;
     lessonId: number;
-    note: string | null; // 保護者からの連絡事項
 };
 
 // 通常の行
@@ -27,26 +26,32 @@ export type RegularRowData = AttendanceRowBase & {
     makeupStatus: string | null; // 補講先での出欠（未記録ならnull）
     recordedBy: string | null; // 記録したスタッフの名前（スタッフがまだ対応していなければnull）
     isNotice: boolean; // 保護者からの事前連絡で、スタッフがまだ対応していない記録か
-    catchUp: CatchUpData | null; // 自分のクラスのこの回に30分前補講でも来る場合の、補講の情報
+    note: string | null; // 保護者からの連絡事項
+    // 補講先の回に、同じ生徒が入れている補講予定（この欠席の分も含む。30分前補講が2つなら1時間前補講）
+    makeupGroupTypes: string[];
+    otherMakeups: OtherMakeup[]; // ほかの欠席分の補講予定（補講先を選ぶモーダルで使う）
+    catchUp: MakeupGroupData | null; // 自分のクラスのこの回に補講でも来る場合の、補講の情報
 };
 
-// 自分のクラスの回に、別の日の欠席分の30分前補講で来るときの補講の情報（通常の行にまとめて出す）
-export type CatchUpData = {
-    attendanceId: number; // 元の欠席記録のID（補講先での出欠を記録するときに使う）
+// 同じ生徒のほかの欠席分の補講予定
+export type OtherMakeup = {
+    sessionKey: string; // 補講先の回を表すキー（MakeupCandidateのsessionKeyと比べる）
     makeupType: string;
-    absentDate: string; // 何日の欠席分の補講か
+};
+
+// 同じ生徒が同じ回に来る補講の情報。1つ、または2つ（1時間前補講・振替＋30分前補講）をまとめたもの
+export type MakeupGroupData = {
+    attendanceId: number; // 元の欠席記録のID（補講先での出欠を記録するときに使う。同じ回の補講はまとめて記録される）
+    makeupTypes: string[]; // 補講予定（振替が先）
+    absences: { absentDate: string; note: string | null }[]; // 何日の欠席分か（古い順）と、その日の連絡事項
     makeupStatus: string | null; // 補講先での出欠（未記録ならnull）
-    note: string | null; // 欠席した日の保護者からの連絡事項
 };
 
-// 「来る側」の行
-export type MakeupRowData = AttendanceRowBase & {
-    kind: 'makeup';
-    attendanceId: number; // 元の欠席レコードが必ずある
-    makeupType: string;
-    absentDate: string;
-    makeupStatus: string | null;
-};
+// 「来る側」の行（1人1行。同じ生徒の補講が2つあれば1行にまとめる）
+export type MakeupRowData = AttendanceRowBase &
+    MakeupGroupData & {
+        kind: 'makeup';
+    };
 
 export type AttendanceRowData = RegularRowData | MakeupRowData;
 
@@ -80,6 +85,7 @@ export type UpcomingHoliday = {
 // 補講先（振替・30分前補講）の候補の授業回
 export type MakeupCandidate = {
     lessonId: number;
+    sessionKey: string; // 補講先の回を表すキー（同じ日・同じ授業実施単位なら同じ）
     date: string;
     weekday: string;
     startTime: string;

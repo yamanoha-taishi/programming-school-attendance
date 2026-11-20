@@ -807,8 +807,8 @@ class AttendanceIndexTest extends TestCase
             ->where('blocks.0.makeupRows.0.nameKana', 'ア振替で来る')
             ->where('blocks.0.makeupRows.0.schoolClassName', '応用クラス1組')
             ->where('blocks.0.makeupRows.0.lessonId', $makeupLesson->id)
-            ->where('blocks.0.makeupRows.0.makeupType', '振替')
-            ->where('blocks.0.makeupRows.0.absentDate', '2026-09-30')
+            ->where('blocks.0.makeupRows.0.makeupTypes', ['振替'])
+            ->where('blocks.0.makeupRows.0.absences', [['absentDate' => '2026-09-30', 'note' => null]])
             ->where('blocks.0.makeupRows.0.makeupStatus', null)
         );
     }
@@ -853,13 +853,106 @@ class AttendanceIndexTest extends TestCase
             ->where('blocks.0.rows.0.studentId', $student->id)
             ->where('blocks.0.rows.0.catchUp', [
                 'attendanceId' => $makeup->id,
-                'makeupType' => '30分前補講',
-                'absentDate' => '2026-09-26',
+                'makeupTypes' => ['30分前補講'],
+                'absences' => [['absentDate' => '2026-09-26', 'note' => '次の回に30分早く行きます']],
                 'makeupStatus' => null,
-                'note' => '次の回に30分早く行きます',
             ])
             ->where('blocks.0.rows.1.catchUp', null)
             ->has('blocks.0.makeupRows', 0)
+        );
+    }
+
+    public function test_one_hour_catch_up_in_own_class_is_shown_in_one_row()
+    {
+        // 9/19・9/26（土）の2回を休み、自分のクラスの10/3に、2回分の30分前補講（1時間前補講）で来る
+        $absentLesson1 = $this->createLesson('2026-09-19', 'A1', 'A1');
+        $absentLesson2 = $this->createLesson('2026-09-26', 'A1', 'A1');
+        $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $student = $this->createStudent('A1', 'A1', '年中', 'ア1時間前補講');
+        // 新しい欠席の分から作っても、休んだ日の古い順に並ぶ
+        $this->createMakeup($student, $absentLesson2, $lesson, '30分前補講');
+        $makeup1 = $this->createMakeup($student, $absentLesson1, $lesson, '30分前補講');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page
+            ->has('blocks.0.rows', 1)
+            ->where('blocks.0.rows.0.catchUp', [
+                'attendanceId' => $makeup1->id,
+                'makeupTypes' => ['30分前補講', '30分前補講'],
+                'absences' => [
+                    ['absentDate' => '2026-09-19', 'note' => null],
+                    ['absentDate' => '2026-09-26', 'note' => null],
+                ],
+                'makeupStatus' => null,
+            ])
+            ->has('blocks.0.makeupRows', 0)
+            // 1人1行で数える
+            ->where('blocks.0.summary', ['present' => 0, 'absent' => 0, 'unrecorded' => 1])
+        );
+    }
+
+    public function test_two_makeups_of_a_student_from_another_class_are_shown_in_one_row()
+    {
+        // 水曜Bの生徒が、9/23分を振替、9/30分を30分前補講にして、10/3（土）の土曜Bにまとめて来る
+        $makeupLesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $student = $this->createStudent('B', 'B1', '小3', 'ア振替と30分前補講', weekday: '水');
+        $this->createMakeup($student, $this->createLesson('2026-09-30', 'B', 'B1', '水'), $makeupLesson, '30分前補講')
+            ->update(['note' => '30分前補講もお願いします']);
+        $transfer = $this->createMakeup($student, $this->createLesson('2026-09-23', 'B', 'B1', '水'), $makeupLesson, '振替');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        // 振替を先、欠席の日は古い順にして1行にまとめる
+        $response->assertInertia(fn ($page) => $page
+            ->has('blocks.0.makeupRows', 1)
+            ->where('blocks.0.makeupRows.0.attendanceId', $transfer->id)
+            ->where('blocks.0.makeupRows.0.makeupTypes', ['振替', '30分前補講'])
+            ->where('blocks.0.makeupRows.0.absences', [
+                ['absentDate' => '2026-09-23', 'note' => null],
+                ['absentDate' => '2026-09-30', 'note' => '30分前補講もお願いします'],
+            ])
+            ->where('blocks.0.makeupSummary', ['present' => 0, 'absent' => 0, 'unrecorded' => 1])
+        );
+    }
+
+    public function test_student_of_the_same_section_without_own_class_lesson_is_shown_as_makeup_row()
+    {
+        // 10/3の土曜BはB1の授業回だけ。土曜BのB2の生徒は、その日に自分のクラスの授業回が無いので、所属する生徒の行には出ない。
+        // 9/26分の30分前補講で10/3に来る場合は、行にまとめずに「来る側」の行に出す
+        $makeupLesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $student = $this->createStudent('B', 'B2', '小4', 'ア同じ授業実施単位の別の組');
+        $this->createMakeup($student, $this->createLesson('2026-09-26', 'B', 'B2'), $makeupLesson, '30分前補講');
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page
+            ->has('blocks.0.rows', 0)
+            ->has('blocks.0.makeupRows', 1)
+            ->where('blocks.0.makeupRows.0.studentId', $student->id)
+        );
+    }
+
+    public function test_regular_row_has_other_makeups_of_the_student()
+    {
+        // 9/26・10/3（土）の2回を休み、どちらも10/10に30分前補講（1時間前補講）で来る予定
+        $absentLesson = $this->createLesson('2026-09-26', 'A1', 'A1');
+        $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $makeupLesson = $this->createLesson('2026-10-10', 'A1', 'A1');
+        $student = $this->createStudent('A1', 'A1', '年中', 'ア2回休んだ');
+        $this->createMakeup($student, $absentLesson, $makeupLesson, '30分前補講');
+        $this->createMakeup($student, $lesson, $makeupLesson, '30分前補講');
+        $sessionKey = "2026-10-10-{$makeupLesson->section_id}";
+
+        $response = $this->getAttendances('2026-10-03');
+
+        $response->assertInertia(fn ($page) => $page
+            // この回の欠席の補講先に入っている補講予定（この欠席の分も含む）
+            ->where('blocks.0.rows.0.makeupGroupTypes', ['30分前補講', '30分前補講'])
+            // ほかの欠席分の補講予定（この回の欠席の分は除く）
+            ->where('blocks.0.rows.0.otherMakeups', [['sessionKey' => $sessionKey, 'makeupType' => '30分前補講']])
+            // 補講先の候補にも、同じ形のキーを付ける
+            ->where('blocks.0.makeupCandidates.1.sessionKey', $sessionKey)
         );
     }
 
@@ -895,7 +988,7 @@ class AttendanceIndexTest extends TestCase
         // 元の欠席記録の連絡事項も、来る側の行に出す
         $response->assertInertia(fn ($page) => $page
             ->where('blocks.0.makeupRows.0.makeupStatus', '出席')
-            ->where('blocks.0.makeupRows.0.note', '10/3の振替を希望します')
+            ->where('blocks.0.makeupRows.0.absences.0.note', '10/3の振替を希望します')
         );
     }
 

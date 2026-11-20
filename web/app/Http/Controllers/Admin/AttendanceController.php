@@ -29,6 +29,9 @@ class AttendanceController extends Controller
      */
     private const ADVANCE_WEEKS = 5;
 
+    /** 補講先の授業回を決める補講予定 */
+    private const MAKEUP_TYPES_WITH_LESSON = ['振替', '30分前補講'];
+
     public function index(Request $request): Response
     {
         $validated = $request->validate([
@@ -63,10 +66,21 @@ class AttendanceController extends Controller
 
         $makeupCandidates = $this->makeupCandidates($lessons, $date);
 
+        // その日の生徒の、補講予定（振替・30分前補講）が入っている欠席記録（補講先がその日の前後5週間のもの）。
+        // 補講先を選ぶモーダルで、同じ日に入っているほかの欠席分の補講（1時間前補講になる、など）を示すのに使う
+        $studentMakeups = Attendance::with('makeupLesson')
+            ->whereIn('student_id', $students->pluck('id'))
+            ->whereIn('makeup_type', self::MAKEUP_TYPES_WITH_LESSON)
+            ->whereHas('makeupLesson', fn (Builder $query) => $query
+                ->whereDate('date', '>=', Carbon::parse($date)->subWeeks(5)->toDateString())
+                ->whereDate('date', '<=', Carbon::parse($date)->addWeeks(5)->toDateString()))
+            ->get()
+            ->groupBy('student_id');
+
         $blocks = $lessons
             ->sortBy(fn (Lesson $lesson) => $lesson->section->start_time)
             ->groupBy('section_id')
-            ->map(fn (Collection $sectionLessons) => $this->buildBlock($sectionLessons, $students, $attendances, $makeupAttendances, $makeupCandidates))
+            ->map(fn (Collection $sectionLessons) => $this->buildBlock($sectionLessons, $students, $attendances, $makeupAttendances, $makeupCandidates, $studentMakeups))
             ->values();
 
         // 授業計画上の第何回か。休校は週単位で決まるため、その日の授業回はふつう同じ回数になる。
@@ -163,6 +177,7 @@ class AttendanceController extends Controller
 
         if ($makeupLessonId !== null) {
             $this->ensureValidMakeupLesson($lesson, (int) $makeupLessonId);
+            $this->ensureMakeupLessonHasRoom($student, $lesson, (string) $makeupType, (int) $makeupLessonId);
         }
 
         /** @var Staff $staff */
@@ -212,7 +227,14 @@ class AttendanceController extends Controller
             ]);
         }
 
-        $attendance->update(['makeup_status' => $validated['makeup_status']]);
+        // 同じ生徒が同じ日の同じ回に来る補講（1時間前補講・振替＋30分前補講）は、まとめて1回で記録する
+        $makeupLesson = $attendance->makeupLesson;
+        if ($makeupLesson === null) {
+            abort(404);
+        }
+
+        $this->sameSessionMakeups($attendance->student_id, $makeupLesson)
+            ->update(['makeup_status' => $validated['makeup_status']]);
 
         return back();
     }
@@ -237,6 +259,52 @@ class AttendanceController extends Controller
                 'makeup_lesson_id' => '補講先に選べない授業回です。',
             ]);
         }
+    }
+
+    /**
+     * 同じ生徒が同じ日の同じ回に入れられる補講の数を超えていないか確認する。
+     * 振替は1回分まで、30分前補講は2回分（1時間前補講）まで。振替と30分前補講は一緒に受けられる。
+     * 選び直しのときは、この欠席の記録そのものは数えない。
+     */
+    private function ensureMakeupLessonHasRoom(Student $student, Lesson $lesson, string $makeupType, int $makeupLessonId): void
+    {
+        $otherTypes = $this->sameSessionMakeups($student->id, Lesson::findOrFail($makeupLessonId))
+            ->where('lesson_id', '!=', $lesson->id)
+            ->pluck('makeup_type');
+
+        if ($makeupType === '振替' && $otherTypes->contains('振替')) {
+            throw ValidationException::withMessages([
+                'makeup_lesson_id' => 'この日には、すでに別の欠席分の振替で来る予定です。',
+            ]);
+        }
+
+        if ($makeupType === '30分前補講' && $otherTypes->filter(fn ($type) => $type === '30分前補講')->count() >= 2) {
+            throw ValidationException::withMessages([
+                'makeup_lesson_id' => 'この日には、すでに2回分の30分前補講（1時間前補講）が入っています。',
+            ]);
+        }
+    }
+
+    /**
+     * 同じ生徒が、指定した補講先と同じ日の同じ回（応用クラスなら、B1〜B6が一緒に授業をする回）に入れている補講予定。
+     *
+     * @return Builder<Attendance>
+     */
+    private function sameSessionMakeups(int $studentId, Lesson $makeupLesson): Builder
+    {
+        return Attendance::where('student_id', $studentId)
+            ->whereIn('makeup_type', self::MAKEUP_TYPES_WITH_LESSON)
+            ->whereHas('makeupLesson', fn (Builder $query) => $query
+                ->where('section_id', $makeupLesson->section_id)
+                ->whereDate('date', $makeupLesson->date->toDateString()));
+    }
+
+    /**
+     * 補講先の回を表すキー（「日付-授業実施単位ID」）。同じ日の同じ回に入っている補講をまとめるのに使う。
+     */
+    private function sessionKey(Lesson $lesson): string
+    {
+        return "{$lesson->date->toDateString()}-{$lesson->section_id}";
     }
 
     /**
@@ -518,6 +586,8 @@ class AttendanceController extends Controller
     {
         return [
             'lessonId' => $candidate->id,
+            // 補講先の回を表すキー。同じ生徒のほかの欠席分の補講がすでに入っている回かを、画面側で判定するのに使う
+            'sessionKey' => $this->sessionKey($candidate),
             'date' => $candidate->date->toDateString(),
             'weekday' => $candidate->section->weekday,
             'startTime' => substr($candidate->section->start_time, 0, 5),
@@ -544,9 +614,10 @@ class AttendanceController extends Controller
      * @param  Collection<string, Attendance>  $attendances  その日の出席記録（キーは「生徒ID-授業回ID」）
      * @param  Collection<int, Attendance>  $makeupAttendances  その日の全ブロックに補講で来る欠席記録
      * @param  Collection<int, Collection<int, array<string, mixed>>>  $makeupCandidates  ブロックごとの補講先の候補（キーは授業実施単位のID）
+     * @param  Collection<array-key, \Illuminate\Database\Eloquent\Collection<int, Attendance>>  $studentMakeups  その日の生徒の、補講予定が入っている欠席記録（キーは生徒ID）
      * @return array<string, mixed>
      */
-    private function buildBlock(Collection $sectionLessons, Collection $students, Collection $attendances, Collection $makeupAttendances, Collection $makeupCandidates): array
+    private function buildBlock(Collection $sectionLessons, Collection $students, Collection $attendances, Collection $makeupAttendances, Collection $makeupCandidates, Collection $studentMakeups): array
     {
         $section = $sectionLessons->firstOrFail()->section;
 
@@ -558,6 +629,9 @@ class AttendanceController extends Controller
                 fn (Attendance $a, Attendance $b) => $a->student->gradeOrder() <=> $b->student->gradeOrder(),
             ]);
 
+        // 同じ生徒の補講（1時間前補講・振替＋30分前補講）は1つにまとめるので、生徒ごとに分ける
+        $makeupsByStudent = $blockMakeups->groupBy('student_id');
+
         // このブロックに所属する生徒の行
         $rows = $students
             ->where('section_id', $section->id)
@@ -565,16 +639,16 @@ class AttendanceController extends Controller
                 fn (Student $a, Student $b) => $a->schoolClass->code <=> $b->schoolClass->code,
                 fn (Student $a, Student $b) => $a->gradeOrder() <=> $b->gradeOrder(),
             ])
-            ->map(fn (Student $student) => $this->buildRow($student, $sectionLessons, $attendances, $blockMakeups))
+            ->map(fn (Student $student) => $this->buildRow($student, $sectionLessons, $attendances, $makeupsByStudent, $studentMakeups))
             ->filter()
             ->values();
 
-        // ほかの回から補講で来る生徒の行。
+        // ほかの回から補講で来る生徒の行（1人1行）。
         // 自分のクラスの回に30分前補講で来る生徒は、所属する生徒の行にまとめる（catchUp）ので、ここには出さない
         $rowStudentIds = $rows->pluck('studentId');
-        $makeupRows = $blockMakeups
-            ->reject(fn (Attendance $attendance) => $rowStudentIds->contains($attendance->student_id))
-            ->map(fn (Attendance $attendance) => $this->buildMakeupRow($attendance))
+        $makeupRows = $makeupsByStudent
+            ->reject(fn (Collection $records, $studentId) => $rowStudentIds->contains($studentId))
+            ->map(fn (Collection $records) => $this->buildMakeupRow($records))
             ->values();
 
         return [
@@ -602,10 +676,11 @@ class AttendanceController extends Controller
      *
      * @param  Collection<int, Lesson>  $sectionLessons
      * @param  Collection<string, Attendance>  $attendances
-     * @param  Collection<int, Attendance>  $blockMakeups  このブロックに補講で来る欠席記録
+     * @param  Collection<int, Collection<int, Attendance>>  $makeupsByStudent  このブロックに補講で来る欠席記録（キーは生徒ID）
+     * @param  Collection<array-key, \Illuminate\Database\Eloquent\Collection<int, Attendance>>  $studentMakeups  その日の生徒の、補講予定が入っている欠席記録（キーは生徒ID）
      * @return array<string, mixed>|null
      */
-    private function buildRow(Student $student, Collection $sectionLessons, Collection $attendances, Collection $blockMakeups): ?array
+    private function buildRow(Student $student, Collection $sectionLessons, Collection $attendances, Collection $makeupsByStudent, Collection $studentMakeups): ?array
     {
         $lesson = $sectionLessons->first(
             fn (Lesson $lesson) => $lesson->lessonPlan->school_class_id === $student->school_class_id
@@ -617,8 +692,33 @@ class AttendanceController extends Controller
 
         $attendance = $attendances->get("{$student->id}-{$lesson->id}");
 
-        // 自分のクラスのこの回に、別の日の欠席分の30分前補講で来るときの、その欠席記録
-        $catchUp = $blockMakeups->firstWhere('student_id', $student->id);
+        // 自分のクラスのこの回に、別の日の欠席分の補講（30分前補講・1時間前補講など）でも来るときの、その欠席記録
+        $catchUp = $makeupsByStudent->get($student->id);
+
+        // この生徒のほかの欠席分の補講予定（この回の欠席の記録は除く）。補講先の回のキーと補講予定
+        $otherMakeups = collect();
+        foreach ($studentMakeups->get($student->id) ?? [] as $record) {
+            $recordMakeupLesson = $record->makeupLesson;
+
+            if ($record->lesson_id !== $lesson->id && $recordMakeupLesson !== null) {
+                $otherMakeups->push([
+                    'sessionKey' => $this->sessionKey($recordMakeupLesson),
+                    'makeupType' => $record->makeup_type,
+                ]);
+            }
+        }
+
+        // この回の欠席の補講先に、同じ生徒が入れている補講予定（この欠席の分も含む）。1時間前補講かを判定するのに使う
+        $makeupGroupTypes = [];
+        $ownMakeupLesson = $attendance?->makeupLesson;
+        if ($attendance !== null && $ownMakeupLesson !== null) {
+            $makeupGroupTypes = $otherMakeups
+                ->where('sessionKey', $this->sessionKey($ownMakeupLesson))
+                ->pluck('makeupType')
+                ->push($attendance->makeup_type)
+                ->values()
+                ->all();
+        }
 
         return [
             'kind' => 'regular',
@@ -638,22 +738,18 @@ class AttendanceController extends Controller
             // 補講先の授業回のID（同じ補講先を選び直したかを、画面側で判定するのに使う）
             'makeupLessonId' => $attendance?->makeup_lesson_id,
             'makeupStatus' => $attendance?->makeup_status,
+            // 補講先の回に、同じ生徒が入れている補講予定（この欠席の分も含む。30分前補講が2つなら1時間前補講）
+            'makeupGroupTypes' => $makeupGroupTypes,
+            // ほかの欠席分の補講予定（補講先を選ぶモーダルで、同じ回にすでに入っている補講を示すのに使う）
+            'otherMakeups' => $otherMakeups,
             // 記録したスタッフの名前（スタッフがまだ対応していなければnull）
             'recordedBy' => $attendance?->staff?->name,
             // 保護者からの事前連絡で、スタッフがまだ対応していない記録か
             'isNotice' => $attendance !== null && $attendance->staff_id === null,
             // 保護者からの連絡事項（欠席・遅刻・補講登録画面の自由記入欄）
             'note' => $attendance?->note,
-            // 自分のクラスのこの回に30分前補講でも来る場合の、補講の情報（行を分けず、この行で補講の出欠も記録する）
-            'catchUp' => $catchUp === null ? null : [
-                // 補講先での出欠を記録するとき（updateMakeupルート）に使う、元の欠席記録のID
-                'attendanceId' => $catchUp->id,
-                'makeupType' => $catchUp->makeup_type,
-                'absentDate' => $catchUp->lesson->date->toDateString(),
-                'makeupStatus' => $catchUp->makeup_status,
-                // 欠席した日の保護者からの連絡事項
-                'note' => $catchUp->note,
-            ],
+            // 自分のクラスのこの回に補講でも来る場合の、補講の情報（行を分けず、この行で補講の出欠も記録する）
+            'catchUp' => $catchUp === null ? null : $this->makeupGroup($catchUp),
         ];
     }
 
@@ -682,26 +778,53 @@ class AttendanceController extends Controller
 
     /**
      * 振替・30分前補講でこのブロックに来る生徒の行を、元の欠席記録から作る。
+     * 同じ生徒の補講が2つ（1時間前補講・振替＋30分前補講）あれば、1行にまとめる。
      *
+     * @param  Collection<int, Attendance>  $records  この生徒がこのブロックに補講で来る欠席記録
      * @return array<string, mixed>
      */
-    private function buildMakeupRow(Attendance $attendance): array
+    private function buildMakeupRow(Collection $records): array
     {
+        $first = $records->firstOrFail();
+
         return [
             'kind' => 'makeup',
-            // 補講先での出欠を記録するとき（updateMakeupルート）に使う、元の欠席記録のID
-            'attendanceId' => $attendance->id,
-            'studentId' => $attendance->student_id,
-            'name' => $attendance->student->name,
-            'nameKana' => $attendance->student->name_kana,
-            'schoolClassName' => $attendance->student->schoolClass->display_name,
-            'lessonId' => $attendance->makeup_lesson_id,
-            'makeupType' => $attendance->makeup_type,
-            // 何日の欠席分の補講か（例：2026-09-24。画面では「9/24欠席分」と表示する）
-            'absentDate' => $attendance->lesson->date->toDateString(),
-            'makeupStatus' => $attendance->makeup_status,
-            // 保護者からの連絡事項（補講の希望などが書かれていることがあるため、補講先の日にも出す）
-            'note' => $attendance->note,
+            'studentId' => $first->student_id,
+            'name' => $first->student->name,
+            'nameKana' => $first->student->name_kana,
+            'schoolClassName' => $first->student->schoolClass->display_name,
+            'lessonId' => $first->makeup_lesson_id,
+            ...$this->makeupGroup($records),
+        ];
+    }
+
+    /**
+     * 同じ生徒が同じ回に来る補講（1つ、または1時間前補講・振替＋30分前補講のように2つ）の情報。
+     *
+     * @param  Collection<int, Attendance>  $records
+     * @return array<string, mixed>
+     */
+    private function makeupGroup(Collection $records): array
+    {
+        // 休んだ日の古い順
+        $records = $records->sortBy(fn (Attendance $record) => $record->lesson->date->toDateString())->values();
+        $first = $records->firstOrFail();
+
+        return [
+            // 補講先での出欠を記録するとき（updateMakeupルート）に使う、元の欠席記録のID（同じ回の補講はまとめて記録される）
+            'attendanceId' => $first->id,
+            // 補講予定（振替を先にする。例：振替・30分前補講、30分前補講・30分前補講）
+            'makeupTypes' => array_values($records->pluck('makeup_type')
+                ->sortBy(fn ($type) => $type === '振替' ? 0 : 1)
+                ->values()
+                ->all()),
+            // 何日の欠席分の補講か（例：2026-09-24。画面では「9/24欠席分」と表示する）と、その日の保護者からの連絡事項
+            'absences' => array_values($records->map(fn (Attendance $record) => [
+                'absentDate' => $record->lesson->date->toDateString(),
+                'note' => $record->note,
+            ])->all()),
+            // 補講先での出欠。まとめて記録するので、ふつうはどれも同じ。1つでも未記録なら未記録にする
+            'makeupStatus' => $records->contains(fn (Attendance $record) => $record->makeup_status === null) ? null : $first->makeup_status,
         ];
     }
 

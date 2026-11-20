@@ -418,6 +418,95 @@ class AttendanceUpdateTest extends TestCase
         ]);
     }
 
+    public function test_second_catch_up_to_the_same_lesson_is_recorded_as_one_hour_catch_up()
+    {
+        // 9/26分の30分前補講がすでに10/10に入っている生徒が、10/3分も10/10の30分前補講にする（1時間前補講）
+        $absentLesson = $this->createLesson('2026-09-26', 'A1', 'A1');
+        $lesson = $this->createLesson('2026-10-03', 'A1', 'A1');
+        $makeupLesson = $this->createLesson('2026-10-10', 'A1', 'A1');
+        $student = $this->createStudent('A1', 'A1');
+        $this->createMakeup($student, $absentLesson, $makeupLesson, '30分前補講');
+
+        $response = $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '30分前補講',
+            'makeup_lesson_id' => $makeupLesson->id,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertSame(2, Attendance::where('makeup_lesson_id', $makeupLesson->id)->count());
+    }
+
+    public function test_third_catch_up_to_the_same_lesson_is_rejected()
+    {
+        // 10/17にすでに2回分の30分前補講（1時間前補講）が入っている生徒が、3回分目を入れようとする
+        $makeupLesson = $this->createLesson('2026-10-17', 'A1', 'A1');
+        $student = $this->createStudent('A1', 'A1');
+        $this->createMakeup($student, $this->createLesson('2026-09-26', 'A1', 'A1'), $makeupLesson, '30分前補講');
+        $this->createMakeup($student, $this->createLesson('2026-10-03', 'A1', 'A1'), $makeupLesson, '30分前補講');
+        $lesson = $this->createLesson('2026-10-10', 'A1', 'A1');
+
+        $response = $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '30分前補講',
+            'makeup_lesson_id' => $makeupLesson->id,
+        ]);
+
+        $response->assertSessionHasErrors(['makeup_lesson_id' => 'この日には、すでに2回分の30分前補講（1時間前補講）が入っています。']);
+        $this->assertDatabaseMissing('attendances', ['lesson_id' => $lesson->id]);
+    }
+
+    public function test_second_transfer_to_the_same_lesson_is_rejected()
+    {
+        // 9/26分の振替ですでに10/7（水）に来る予定の生徒が、10/3分も10/7の振替にしようとする
+        $makeupLesson = $this->createLesson('2026-10-07', 'B', 'B1', '水');
+        $student = $this->createStudent('B', 'B1');
+        $this->createMakeup($student, $this->createLesson('2026-09-26', 'B', 'B1'), $makeupLesson, '振替');
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+
+        $response = $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $makeupLesson->id,
+        ]);
+
+        $response->assertSessionHasErrors(['makeup_lesson_id' => 'この日には、すでに別の欠席分の振替で来る予定です。']);
+    }
+
+    public function test_catch_up_with_transfer_to_the_same_lesson_is_recorded()
+    {
+        // 9/26分の振替で10/7（水）に来る予定の生徒が、10/3分を10/7の30分前補講にする（振替＋30分前補講）
+        $makeupLesson = $this->createLesson('2026-10-07', 'B', 'B1', '水');
+        $student = $this->createStudent('B', 'B1');
+        $this->createMakeup($student, $this->createLesson('2026-09-26', 'B', 'B1'), $makeupLesson, '振替');
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+
+        $response = $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '30分前補講',
+            'makeup_lesson_id' => $makeupLesson->id,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+    }
+
+    public function test_reselecting_the_same_makeup_lesson_is_not_counted_twice()
+    {
+        // 振替で10/7に来る予定の欠席の記録で、同じ10/7の振替を選び直しても、自分の分は数えない
+        $makeupLesson = $this->createLesson('2026-10-07', 'B', 'B1', '水');
+        $student = $this->createStudent('B', 'B1');
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $this->createMakeup($student, $lesson, $makeupLesson, '振替');
+
+        $response = $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $makeupLesson->id,
+        ]);
+
+        $response->assertSessionHasNoErrors();
+    }
+
     public function test_makeup_fields_are_ignored_when_present_is_recorded()
     {
         $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
@@ -603,6 +692,21 @@ class AttendanceUpdateTest extends TestCase
             'grade' => '小3',
             'name' => 'テスト生徒',
             'name_kana' => 'テストセイト',
+        ]);
+    }
+
+    /**
+     * 欠席して、別の授業回に振替・30分前補講で来る予定の欠席記録を作る。
+     */
+    private function createMakeup(Student $student, Lesson $absentLesson, Lesson $makeupLesson, string $makeupType): Attendance
+    {
+        return Attendance::create([
+            'student_id' => $student->id,
+            'lesson_id' => $absentLesson->id,
+            'status' => '欠席',
+            'is_late' => false,
+            'makeup_type' => $makeupType,
+            'makeup_lesson_id' => $makeupLesson->id,
         ]);
     }
 }

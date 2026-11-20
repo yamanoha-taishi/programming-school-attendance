@@ -80,6 +80,28 @@ class AttendanceUpdateMakeupTest extends TestCase
         ]);
     }
 
+    public function test_makeups_of_the_same_student_to_the_same_lesson_are_recorded_together()
+    {
+        // 9/23分を振替、9/30分を30分前補講にして、10/3にまとめて来る生徒（振替＋30分前補講）
+        $transfer = $this->createAbsence('振替', $this->makeupLesson);
+        $catchUp = Attendance::create([
+            'student_id' => $transfer->student_id,
+            'lesson_id' => $this->createLesson('2026-09-23', 'B', 'B1', '水')->id,
+            'status' => '欠席',
+            'is_late' => false,
+            'makeup_type' => '30分前補講',
+            'makeup_lesson_id' => $this->makeupLesson->id,
+        ]);
+        // 別の生徒の同じ回の補講は変えない
+        $other = $this->createAbsence('振替', $this->makeupLesson);
+
+        $this->patchMakeup($transfer, ['makeup_status' => '出席'])->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('attendances', ['id' => $transfer->id, 'makeup_status' => '出席']);
+        $this->assertDatabaseHas('attendances', ['id' => $catchUp->id, 'makeup_status' => '出席']);
+        $this->assertDatabaseHas('attendances', ['id' => $other->id, 'makeup_status' => null]);
+    }
+
     public function test_makeup_status_can_be_changed_after_recorded()
     {
         // 「欠席」で記録したが、遅れて来たので「出席」に直す

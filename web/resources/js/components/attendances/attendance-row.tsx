@@ -6,6 +6,7 @@ import {
     ChevronRight,
     Clock,
     History,
+    X,
     MessageSquareText,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -20,7 +21,8 @@ import {
     DialogFooter,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { formatDateLabel, formatMonthDay } from '@/lib/date-format';
+import { formatDateLabel } from '@/lib/date-format';
+import { absentDatesLabel, arrivalTime, makeupLabel } from '@/lib/makeup';
 import { cn } from '@/lib/utils';
 import { makeup, update } from '@/routes/admin/attendances';
 import type {
@@ -29,18 +31,17 @@ import type {
     RegularRowData,
 } from '@/types/attendance';
 
-// 予定や補講に関するタグ（振替予定、来る側の「振替（10/24欠席分）」、「補講あり」など）。
-// 後で見る情報なので、塗らずに白地に枠線だけにする
+// 予定や補講に関するタグ（補講の種類、補講なしなど）。
+// 後で見る情報なので、塗らずに白地に枠線だけにする。日付などの変わる値はタグに入れず、名前の下に出す
 const outlineTagClass =
-    'inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5 text-xs font-semibold text-muted-foreground';
+    'inline-flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-muted-foreground';
 
-// 状態を示す小さな色の点（欠席は赤、済みは緑）
-function Dot({ className }: { className: string }) {
-    return <span className={cn('size-1.5 rounded-full', className)} />;
-}
+// 記録してほしい補講のタグ（補講未定、補講の出欠が未記録の補講）。未記録と同じオレンジで目立たせる
+const pendingTagClass =
+    'rounded-full bg-brand-accent-tint px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-brand-accent-text';
 
 // 記録済みか（出欠サマリーで「未記録」に数えない行か）。
-// 30分前補講でも来る通常の行は、補講の出欠まで記録して記録済みにする
+// 補講でも来る通常の行は、補講の出欠まで記録して記録済みにする
 function isRecorded(row: AttendanceRowData): boolean {
     if (row.kind === 'makeup') {
         return row.makeupStatus !== null;
@@ -52,18 +53,22 @@ function isRecorded(row: AttendanceRowData): boolean {
     );
 }
 
-// 授業の開始時刻の30分前（"14:30" → "14:00"）。30分前補講で実際に来てもらう時間
-function thirtyMinutesBefore(time: string): string {
-    const [hours, minutes] = time.split(':').map(Number);
-    const total = hours * 60 + minutes - 30;
+// 補講の状態のアイコン：補講先の出欠が未記録なら時計（予定）、出席なら✓（済み）、欠席なら赤い×
+function MakeupStatusIcon({ status }: { status: string | null }) {
+    if (status === '出席') {
+        return <Check className="size-3" />;
+    }
 
-    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+    if (status === '欠席') {
+        return <X className="size-3 text-status-absent" />;
+    }
+
+    return <Clock className="size-3" />;
 }
 
-// 自分のクラスのこの回に30分前補講でも来る生徒の、補講のタグ。補講の出欠によって次のように変わる
-// - 未記録：「14:00〜 30分前補講」（授業の前に補講があることを示し、記録してほしいので未記録と同じオレンジにする）
-// - 出席：「✓ 30分前補講」
-// - 欠席：「30分前補講 欠席」（欠席の赤い点を付ける）
+// 自分のクラスのこの回に補講でも来る生徒の、補講のタグ
+// - 補講の出欠が未記録：「13:30〜 1時間前補講」（授業の前に補講があることを示し、記録してほしいのでオレンジにする）
+// - 記録済み：✓（出席）・赤い×（欠席）のアイコン＋補講の種類
 function CatchUpTag({
     row,
     startTime,
@@ -75,31 +80,24 @@ function CatchUpTag({
         return null;
     }
 
-    const { makeupType, makeupStatus } = row.catchUp;
+    const { makeupTypes, makeupStatus } = row.catchUp;
+    const label = makeupLabel(makeupTypes);
 
-    if (makeupStatus === '出席') {
-        return (
-            <span className={outlineTagClass}>
-                <Check className="size-3" />
-                {makeupType}
-            </span>
-        );
-    }
+    if (makeupStatus === null) {
+        const arrival = arrivalTime(startTime, makeupTypes);
 
-    if (makeupStatus === '欠席') {
         return (
-            <span className={outlineTagClass}>
-                <Dot className="bg-status-absent" />
-                {makeupType} 欠席
+            <span className={pendingTagClass}>
+                {arrival !== null && `${arrival}〜 `}
+                {label}
             </span>
         );
     }
 
     return (
-        <span className="rounded-full bg-brand-accent-tint px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-brand-accent-text">
-            {makeupType === '30分前補講' &&
-                `${thirtyMinutesBefore(startTime)}〜 `}
-            {makeupType}
+        <span className={outlineTagClass}>
+            <MakeupStatusIcon status={makeupStatus} />
+            {label}
         </span>
     );
 }
@@ -119,73 +117,82 @@ function LateMark({ row }: { row: AttendanceRowData }) {
     );
 }
 
-// 振替・30分前補講の補講予定を文にしたもの（「振替予定 10/15(木)」など）。それ以外の補講予定ならnull
+// 休んだ日の行の補講の種類。同じ回に30分前補講が2回分入っていれば「1時間前補講」にする
+// （振替＋30分前補講は、それぞれの欠席の行に「振替」「30分前補講」と出す）
+function absentMakeupLabel(row: RegularRowData): string {
+    if (row.makeupType === '30分前補講') {
+        return makeupLabel(
+            row.makeupGroupTypes.filter((type) => type === '30分前補講'),
+        );
+    }
+
+    return row.makeupType ?? '';
+}
+
+// 振替・30分前補講の補講予定を文にしたもの（確認のダイアログで使う。「振替予定 10/15(木)」など）。
+// それ以外の補講予定ならnull
 function makeupPlanText(row: RegularRowData): string | null {
     if (row.makeupType === null || row.makeupDate === null) {
         return null;
     }
 
+    const label = absentMakeupLabel(row);
     const date = formatDateLabel(row.makeupDate);
 
     if (row.makeupStatus === '欠席') {
-        return `${row.makeupType} ${date} 欠席`;
+        return `${label} ${date} 欠席`;
     }
 
     if (row.makeupStatus === '出席') {
-        return `${row.makeupType}済み ${date}`;
+        return `${label}済み ${date}`;
     }
 
-    return `${row.makeupType}予定 ${date}`;
+    return `${label}予定 ${date}`;
 }
 
-// 休んだ日の行に出す、補講予定のタグ。補講の結果によって次のように変わる
-// - 未定：「補講未定」（スタッフがあとで補講先を決める必要があるので、未記録と同じオレンジで目立たせる）
-// - 振替・30分前補講で、補講先の出欠が未記録：「振替予定 10/15(木)」
-// - 補講先で出席：「振替済み 10/15(木)」
-// - 補講先で欠席：「振替 10/15(木) 欠席」
+// 休んだ日の行に出す、補講予定のタグ
+// - 未定：「補講未定」（スタッフがあとで補講先を決める必要があるので、オレンジで目立たせる）
+// - 振替・30分前補講：状態のアイコン（時計＝予定、✓＝済み、赤い×＝補講先で欠席）＋補講の種類。補講日は名前の下に出す
 // - 補講なし：「補講なし」（補講しないことが決まっていると分かるようにする）
 // - 出席の日など：出さない
 function MakeupPlanTag({ row }: { row: RegularRowData }) {
     if (row.makeupType === '未定') {
-        return (
-            <span className="rounded-full bg-brand-accent-tint px-2 py-0.5 text-xs font-semibold text-brand-accent-text">
-                補講未定
-            </span>
-        );
+        return <span className={pendingTagClass}>補講未定</span>;
     }
 
     if (row.makeupType === '補講なし') {
         return <span className={outlineTagClass}>補講なし</span>;
     }
 
-    const text = makeupPlanText(row);
-
-    if (text === null) {
+    if (row.makeupType === null || row.makeupDate === null) {
         return null;
     }
 
-    // 補講先で欠席：記録済みなので塗らず、欠席の赤い点だけ付ける
-    if (row.makeupStatus === '欠席') {
-        return (
-            <span className={outlineTagClass}>
-                <Dot className="bg-status-absent" />
-                {text}
-            </span>
-        );
+    return (
+        <span className={outlineTagClass}>
+            <MakeupStatusIcon status={row.makeupStatus} />
+            {absentMakeupLabel(row)}
+        </span>
+    );
+}
+
+// 名前の下に出す、補講の日付
+// - 補講でも来る行・来る側の行：何日の欠席分か（「11/7・11/14欠席分」）
+// - 休んだ日の行で、補講先が決まっているとき：補講日（「補講日 10/28(水)」）
+function makeupSubText(row: AttendanceRowData): string | null {
+    if (row.kind === 'makeup') {
+        return absentDatesLabel(row.absences.map((a) => a.absentDate));
     }
 
-    // 済み：補講に出席して対応が終わった状態なので、✓を付ける（この回の出欠は、右の「欠席」のバッジで示す）
-    if (row.makeupStatus === '出席') {
-        return (
-            <span className={outlineTagClass}>
-                <Check className="size-3" />
-                {text}
-            </span>
-        );
+    if (row.catchUp !== null) {
+        return absentDatesLabel(row.catchUp.absences.map((a) => a.absentDate));
     }
 
-    // 予定：後で見る情報なので、白地に枠線だけにする
-    return <span className={outlineTagClass}>{text}</span>;
+    if (row.status === '欠席' && row.makeupDate !== null) {
+        return `補講日 ${formatDateLabel(row.makeupDate)}`;
+    }
+
+    return null;
 }
 
 // 通常の行の右端のバッジに出す、この回の出欠
@@ -224,11 +231,57 @@ function RowBadges({
     return (
         <>
             <span className={outlineTagClass}>
-                {row.makeupType}（{formatMonthDay(row.absentDate)}欠席分）
+                {makeupLabel(row.makeupTypes)}
             </span>
             {/* 補講先での出欠（まだなら未記録） */}
             <StatusBadge status={row.makeupStatus ?? '未記録'} />
         </>
+    );
+}
+
+// 欠席した日の保護者からの連絡事項。今日休むと読み違えないよう、見出しで欠席した日を示し、
+// 左に線を引いた引用の形・灰色の文字にする
+function AbsenceNotes({
+    absences,
+}: {
+    absences: { absentDate: string; note: string | null }[];
+}) {
+    return absences
+        .filter((absence) => absence.note !== null)
+        .map((absence) => (
+            <div
+                key={absence.absentDate}
+                className="mt-2 border-l-3 border-border py-0.5 pl-2.5 text-xs text-muted-foreground"
+            >
+                <p className="mb-0.5 flex items-center gap-1 font-bold">
+                    <History className="size-3.5 shrink-0" />
+                    {formatDateLabel(absence.absentDate)} 欠席時の連絡
+                </p>
+                <p className="whitespace-pre-wrap">{absence.note}</p>
+            </div>
+        ));
+}
+
+// 補講の見出し（「1時間前補講 13:30〜（11/7・11/14欠席分）」）
+function MakeupHeading({
+    group,
+    startTime,
+    prefix = '',
+}: {
+    group: { makeupTypes: string[]; absences: { absentDate: string }[] };
+    startTime: string;
+    prefix?: string;
+}) {
+    const arrival = arrivalTime(startTime, group.makeupTypes) ?? startTime;
+
+    return (
+        <p className="mb-1.5 text-xs font-bold">
+            {prefix}
+            {makeupLabel(group.makeupTypes)} {arrival}〜
+            <span className="font-normal text-muted-foreground">
+                （{absentDatesLabel(group.absences.map((a) => a.absentDate))}）
+            </span>
+        </p>
     );
 }
 
@@ -467,8 +520,16 @@ export default function AttendanceRow({
         );
     }
 
-    // 自分のクラスのこの回に30分前補講でも来る場合の、補講の情報（通常の行のみ）
+    // 自分のクラスのこの回に補講でも来る場合の、補講の情報（通常の行のみ）
     const catchUp = row.kind === 'regular' ? row.catchUp : null;
+
+    // 名前の下に出す、補講の日付
+    const subText = makeupSubText(row);
+
+    // 補講で来る分の、欠席した日の連絡事項があるか
+    const hasAbsenceNote = (
+        row.kind === 'makeup' ? row.absences : (catchUp?.absences ?? [])
+    ).some((absence) => absence.note !== null);
 
     // 行を閉じる。記録しなくても閉じられるようにする（補講予定の選択欄も閉じる）
     function close() {
@@ -485,32 +546,30 @@ export default function AttendanceRow({
                     onClick={() => setIsOpen(true)}
                     className="flex w-full items-center justify-between px-3 py-2 text-left"
                 >
-                    <span className="flex items-center gap-1.5">
-                        <span className="text-sm">{row.name}</span>
-                        <LateMark row={row} />
-                        {/* 保護者からの連絡事項がある印。開くと内容が見える。
-                            来る側の行は、欠席した日の連絡（前の記録）なので、吹き出しではなく時計の矢印にして区別する */}
-                        {row.note !== null &&
-                            (row.kind === 'makeup' ? (
-                                <History
-                                    className="size-3.5 text-muted-foreground"
-                                    aria-label="欠席時の連絡あり"
-                                />
-                            ) : (
+                    <span className="block">
+                        <span className="flex items-center gap-1.5">
+                            <span className="text-sm">{row.name}</span>
+                            <LateMark row={row} />
+                            {/* 保護者からの連絡事項がある印。開くと内容が見える */}
+                            {row.kind === 'regular' && row.note !== null && (
                                 <MessageSquareText
                                     className="size-3.5 text-muted-foreground"
                                     aria-label="連絡事項あり"
                                 />
-                            ))}
-                        {/* 30分前補講でも来る行で、欠席した日の連絡がある印 */}
-                        {row.kind === 'regular' &&
-                            row.note === null &&
-                            row.catchUp?.note != null && (
+                            )}
+                            {/* 補講で来る分の、欠席した日の連絡（前の記録）がある印。吹き出しではなく時計の矢印にして区別する */}
+                            {hasAbsenceNote && (
                                 <History
                                     className="size-3.5 text-muted-foreground"
                                     aria-label="欠席時の連絡あり"
                                 />
                             )}
+                        </span>
+                        {subText !== null && (
+                            <span className="block text-[11px] text-muted-foreground">
+                                {subText}
+                            </span>
+                        )}
                     </span>
                     <span className="flex items-center gap-1.5">
                         <RowBadges row={row} startTime={startTime} />
@@ -538,6 +597,11 @@ export default function AttendanceRow({
                     <span className="block text-xs text-text-faint">
                         {row.nameKana}
                     </span>
+                    {subText !== null && (
+                        <span className="block text-[11px] text-muted-foreground">
+                            {subText}
+                        </span>
+                    )}
                 </span>
                 <span className="flex flex-col items-end gap-1">
                     <span className="flex items-center gap-1.5">
@@ -556,48 +620,35 @@ export default function AttendanceRow({
                 </span>
             </button>
 
-            {/* 保護者からの連絡事項。
-                来る側の行は、欠席した日の連絡を前の記録として出す（今日休むと読み違えないよう、
-                見出しで欠席した日を示し、左に線を引いた引用の形・灰色の文字にする） */}
-            {row.note !== null &&
-                (row.kind === 'makeup' ? (
-                    <div className="mt-2 border-l-3 border-border py-0.5 pl-2.5 text-xs text-muted-foreground">
-                        <p className="mb-0.5 flex items-center gap-1 font-bold">
-                            <History className="size-3.5 shrink-0" />
-                            {formatDateLabel(row.absentDate)} 欠席時の連絡
-                        </p>
-                        <p className="whitespace-pre-wrap">{row.note}</p>
-                    </div>
-                ) : (
-                    <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-background px-3 py-2 text-xs whitespace-pre-wrap">
-                        <MessageSquareText className="mt-px size-3.5 shrink-0 text-muted-foreground" />
-                        {row.note}
-                    </p>
-                ))}
+            {/* 保護者からの連絡事項（この回の記録の連絡） */}
+            {row.kind === 'regular' && row.note !== null && (
+                <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-background px-3 py-2 text-xs whitespace-pre-wrap">
+                    <MessageSquareText className="mt-px size-3.5 shrink-0 text-muted-foreground" />
+                    {row.note}
+                </p>
+            )}
 
-            {/* 自分のクラスのこの回に30分前補講でも来る行：来る順に「① 30分前補講」「② 授業」の2段で記録する */}
+            {/* 来る側の行：欠席した日の連絡と、補講の見出し（何の補講か・来る時間・何日の欠席分か） */}
+            {row.kind === 'makeup' && (
+                <>
+                    <AbsenceNotes absences={row.absences} />
+                    <div className="mt-2">
+                        <MakeupHeading group={row} startTime={startTime} />
+                    </div>
+                </>
+            )}
+
+            {/* 自分のクラスのこの回に補講でも来る行：来る順に「① 補講」「② 授業」の2段で記録する */}
             {catchUp !== null && (
                 <div className="mt-2">
-                    <p className="mb-1.5 text-xs font-bold">
-                        ① {catchUp.makeupType}
-                        {catchUp.makeupType === '30分前補講' &&
-                            ` ${thirtyMinutesBefore(startTime)}〜`}
-                        <span className="font-normal text-muted-foreground">
-                            （{formatMonthDay(catchUp.absentDate)}欠席分）
-                        </span>
-                    </p>
-                    {catchUp.note !== null && (
-                        <div className="mb-2 border-l-3 border-border py-0.5 pl-2.5 text-xs text-muted-foreground">
-                            <p className="mb-0.5 flex items-center gap-1 font-bold">
-                                <History className="size-3.5 shrink-0" />
-                                {formatDateLabel(catchUp.absentDate)}{' '}
-                                欠席時の連絡
-                            </p>
-                            <p className="whitespace-pre-wrap">
-                                {catchUp.note}
-                            </p>
-                        </div>
-                    )}
+                    <AbsenceNotes absences={catchUp.absences} />
+                    <div className="mt-2">
+                        <MakeupHeading
+                            group={catchUp}
+                            startTime={startTime}
+                            prefix="① "
+                        />
+                    </div>
                     <div
                         className={cn(
                             'flex gap-1.5',
@@ -647,7 +698,7 @@ export default function AttendanceRow({
             <div
                 className={cn(
                     'flex gap-1.5',
-                    catchUp === null && 'mt-2',
+                    catchUp === null && row.kind === 'regular' && 'mt-2',
                     needsAttendance && pendingAreaClass,
                 )}
             >
@@ -836,6 +887,7 @@ export default function AttendanceRow({
                     makeupType={pickingMakeupType}
                     absence={{ name: row.name, date, lessonNo: row.lessonNo }}
                     candidates={makeupCandidates}
+                    otherMakeups={row.otherMakeups}
                     onSelect={recordAbsentWithMakeupLesson}
                     onClose={() => setPickingMakeupType(null)}
                 />

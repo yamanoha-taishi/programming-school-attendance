@@ -3,13 +3,10 @@ import { cn } from '@/lib/utils';
 
 // 出席ステータスのバッジ。色は「大事なところだけ」に付ける
 // - 未記録：記録してほしいので、オレンジの塗り＋点線の丸のマークで目立たせる
-// - 出席・欠席・済み：記録済みなので灰色にし、状態は小さな色の点で示す
+// - 出席・欠席：記録済みなので灰色にし、状態は小さな色の点で示す
 const dotColors: Record<string, string> = {
     出席: 'bg-status-attend',
     欠席: 'bg-status-absent',
-    // 振替済み・30分前補講済みは、補講に出席して対応が終わった状態なので、出席と同じ緑の点にする
-    振替済み: 'bg-status-attend',
-    '30分前補講済み': 'bg-status-attend',
 };
 
 export default function StatusBadge({ status }: { status: string }) {
