@@ -352,6 +352,39 @@ class AttendanceUpdateTest extends TestCase
         ]);
     }
 
+    public function test_makeup_status_is_kept_when_another_lesson_of_the_same_advanced_session_is_selected()
+    {
+        // 応用クラスは、10/7（水）の水曜BのB1・B2が一緒に授業をする回。補講先はB2の授業回で保存されていて、振替済み
+        $lesson = $this->createLesson('2026-10-03', 'B', 'B1');
+        $savedMakeupLesson = $this->createLesson('2026-10-07', 'B', 'B2', '水');
+        $selectedMakeupLesson = $this->createLesson('2026-10-07', 'B', 'B1', '水');
+        $student = $this->createStudent('B', 'B1');
+        Attendance::create([
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'status' => '欠席',
+            'is_late' => false,
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $savedMakeupLesson->id,
+            'makeup_status' => '出席',
+        ]);
+
+        // 同じ回のB1の授業回を選び直す
+        $this->patchAttendance($lesson, $student, [
+            'status' => '欠席',
+            'makeup_type' => '振替',
+            'makeup_lesson_id' => $selectedMakeupLesson->id,
+        ])->assertSessionHasNoErrors();
+
+        // 同じ日の同じ回なので、補講先での出欠（振替済み）は残る
+        $this->assertDatabaseHas('attendances', [
+            'student_id' => $student->id,
+            'lesson_id' => $lesson->id,
+            'makeup_lesson_id' => $selectedMakeupLesson->id,
+            'makeup_status' => '出席',
+        ]);
+    }
+
     public function test_makeup_status_is_cleared_when_only_the_makeup_type_is_changed()
     {
         $lesson = $this->createLesson('2026-10-03', 'B', 'B1');

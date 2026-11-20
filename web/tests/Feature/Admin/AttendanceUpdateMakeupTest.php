@@ -94,12 +94,22 @@ class AttendanceUpdateMakeupTest extends TestCase
         ]);
         // 別の生徒の同じ回の補講は変えない
         $other = $this->createAbsence('振替', $this->makeupLesson);
+        // 同じ生徒の、別の日の補講も変えない
+        $otherDay = Attendance::create([
+            'student_id' => $transfer->student_id,
+            'lesson_id' => $this->createLesson('2026-09-16', 'B', 'B1', '水')->id,
+            'status' => '欠席',
+            'is_late' => false,
+            'makeup_type' => '30分前補講',
+            'makeup_lesson_id' => $this->createLesson('2026-10-10', 'B', 'B1')->id,
+        ]);
 
         $this->patchMakeup($transfer, ['makeup_status' => '出席'])->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('attendances', ['id' => $transfer->id, 'makeup_status' => '出席']);
         $this->assertDatabaseHas('attendances', ['id' => $catchUp->id, 'makeup_status' => '出席']);
         $this->assertDatabaseHas('attendances', ['id' => $other->id, 'makeup_status' => null]);
+        $this->assertDatabaseHas('attendances', ['id' => $otherDay->id, 'makeup_status' => null]);
     }
 
     public function test_makeup_status_can_be_changed_after_recorded()

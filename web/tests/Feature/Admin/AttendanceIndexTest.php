@@ -950,7 +950,9 @@ class AttendanceIndexTest extends TestCase
             // この回の欠席の補講先に入っている補講予定（この欠席の分も含む）
             ->where('blocks.0.rows.0.makeupGroupTypes', ['30分前補講', '30分前補講'])
             // ほかの欠席分の補講予定（この回の欠席の分は除く）
-            ->where('blocks.0.rows.0.otherMakeups', [['sessionKey' => $sessionKey, 'makeupType' => '30分前補講']])
+            ->where('blocks.0.rows.0.otherMakeups', [['sessionKey' => $sessionKey, 'makeupType' => '30分前補講', 'absentDate' => '2026-09-26']])
+            // この回の欠席の補講先の回のキー
+            ->where('blocks.0.rows.0.makeupSessionKey', $sessionKey)
             // 補講先の候補にも、同じ形のキーを付ける
             ->where('blocks.0.makeupCandidates.1.sessionKey', $sessionKey)
         );

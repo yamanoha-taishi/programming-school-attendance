@@ -68,7 +68,7 @@ class AttendanceController extends Controller
 
         // その日の生徒の、補講予定（振替・30分前補講）が入っている欠席記録（補講先がその日の前後5週間のもの）。
         // 補講先を選ぶモーダルで、同じ日に入っているほかの欠席分の補講（1時間前補講になる、など）を示すのに使う
-        $studentMakeups = Attendance::with('makeupLesson')
+        $studentMakeups = Attendance::with(['lesson', 'makeupLesson'])
             ->whereIn('student_id', $students->pluck('id'))
             ->whereIn('makeup_type', self::MAKEUP_TYPES_WITH_LESSON)
             ->whereHas('makeupLesson', fn (Builder $query) => $query
@@ -184,11 +184,15 @@ class AttendanceController extends Controller
         $staff = $request->user('staff');
 
         // 同じ補講予定（種類と補講先）を選び直したときは、補講先での出欠（振替済みなど）を残す。
-        // 補講予定を変えたときだけ、補講先での出欠を未記録に戻す
-        $current = Attendance::where('student_id', $student->id)->where('lesson_id', $lesson->id)->first();
+        // 補講予定を変えたときだけ、補講先での出欠を未記録に戻す。
+        // 補講先は、同じ日の同じ回なら同じとみなす（応用クラスは、B1〜B6のどの組の授業回でも同じ回）
+        $current = Attendance::with('makeupLesson')->where('student_id', $student->id)->where('lesson_id', $lesson->id)->first();
+        $currentMakeupLesson = $current?->makeupLesson;
         $isSameMakeup = $makeupLessonId !== null
-            && $current?->makeup_type === $makeupType
-            && (int) $current->makeup_lesson_id === (int) $makeupLessonId;
+            && $current !== null
+            && $current->makeup_type === $makeupType
+            && $currentMakeupLesson !== null
+            && $this->isSameSession($currentMakeupLesson, Lesson::findOrFail((int) $makeupLessonId));
 
         // この生徒・この授業回のレコードがあれば更新、なければ作成
         Attendance::updateOrCreate(
@@ -704,16 +708,20 @@ class AttendanceController extends Controller
                 $otherMakeups->push([
                     'sessionKey' => $this->sessionKey($recordMakeupLesson),
                     'makeupType' => $record->makeup_type,
+                    // 何日の欠席分か（補講予定を変えるときの確認で、残る記録を示すのに使う）
+                    'absentDate' => $record->lesson->date->toDateString(),
                 ]);
             }
         }
 
         // この回の欠席の補講先に、同じ生徒が入れている補講予定（この欠席の分も含む）。1時間前補講かを判定するのに使う
         $makeupGroupTypes = [];
+        $makeupSessionKey = null;
         $ownMakeupLesson = $attendance?->makeupLesson;
         if ($attendance !== null && $ownMakeupLesson !== null) {
+            $makeupSessionKey = $this->sessionKey($ownMakeupLesson);
             $makeupGroupTypes = $otherMakeups
-                ->where('sessionKey', $this->sessionKey($ownMakeupLesson))
+                ->where('sessionKey', $makeupSessionKey)
                 ->pluck('makeupType')
                 ->push($attendance->makeup_type)
                 ->values()
@@ -738,6 +746,8 @@ class AttendanceController extends Controller
             // 補講先の授業回のID（同じ補講先を選び直したかを、画面側で判定するのに使う）
             'makeupLessonId' => $attendance?->makeup_lesson_id,
             'makeupStatus' => $attendance?->makeup_status,
+            // 補講先の回を表すキー（同じ回を選び直したかを、画面側で判定するのに使う）
+            'makeupSessionKey' => $makeupSessionKey,
             // 補講先の回に、同じ生徒が入れている補講予定（この欠席の分も含む。30分前補講が2つなら1時間前補講）
             'makeupGroupTypes' => $makeupGroupTypes,
             // ほかの欠席分の補講予定（補講先を選ぶモーダルで、同じ回にすでに入っている補講を示すのに使う）

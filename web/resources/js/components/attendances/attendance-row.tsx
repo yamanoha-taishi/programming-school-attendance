@@ -21,7 +21,7 @@ import {
     DialogFooter,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { formatDateLabel } from '@/lib/date-format';
+import { formatDateLabel, formatMonthDay } from '@/lib/date-format';
 import { absentDatesLabel, arrivalTime, makeupLabel } from '@/lib/makeup';
 import { cn } from '@/lib/utils';
 import { makeup, update } from '@/routes/admin/attendances';
@@ -327,6 +327,25 @@ export default function AttendanceRow({
             ? makeupPlanText(row)
             : null;
 
+    // 同じ補講先の回に入っている、ほかの欠席分の補講の欠席日（1時間前補講・振替＋30分前補講のもう1回分）。
+    // 補講予定を変えても、そちらの補講予定と記録は残るので、確認の文で示す
+    const otherAbsentDatesInGroup =
+        row.kind === 'regular' && row.makeupSessionKey !== null
+            ? row.otherMakeups
+                  .filter((other) => other.sessionKey === row.makeupSessionKey)
+                  .map((other) => other.absentDate)
+            : [];
+
+    // 確認の文で、消えるものを示す。
+    // 同じ回にほかの欠席分の補講もあるときは、この欠席分だけが消えて、もう1回分は残ることを書く
+    function lostText(plan: string, what: string): string {
+        if (otherAbsentDatesInGroup.length === 0) {
+            return `「${plan}」${what}が消えます。`;
+        }
+
+        return `「${plan}」のうち、${formatMonthDay(date)}欠席分${what}が消えます。${otherAbsentDatesInGroup.map(formatMonthDay).join('・')}欠席分は残ります。`;
+    }
+
     // 補講先での出欠まで記録済みか（振替済み・30分前補講済み、または補講先で欠席）。
     // 補講予定を変えると、この記録が消える
     const hasMakeupResult = row.kind === 'regular' && row.makeupStatus !== null;
@@ -391,7 +410,7 @@ export default function AttendanceRow({
 
         setConfirmation({
             title: '補講予定が消えます',
-            message: `${row.isNotice ? '保護者が登録した' : ''}「${currentMakeupPlan}」が消えます。出席にしますか？`,
+            message: `${row.isNotice ? '保護者が登録した' : ''}${lostText(currentMakeupPlan, '')}出席にしますか？`,
             confirmLabel: '出席にする',
             run: recordPresent,
         });
@@ -408,7 +427,7 @@ export default function AttendanceRow({
 
         setConfirmation({
             title: '補講の記録が消えます',
-            message: `「${currentMakeupPlan}」の記録が消えます。補講予定を変えますか？`,
+            message: `${lostText(currentMakeupPlan, 'の記録')}補講予定を変えますか？`,
             confirmLabel: '変更する',
             run: record,
         });
@@ -456,10 +475,16 @@ export default function AttendanceRow({
                 makeup_lesson_id: makeupLessonId,
             });
 
-        // 同じ補講予定（種類と補講先）を選び直したときは、補講の記録は残る（サーバー側で残す）ので確認しない
+        // 同じ補講予定（種類と補講先）を選び直したときは、補講の記録は残る（サーバー側で残す）ので確認しない。
+        // 補講先は、同じ日の同じ回なら同じとみなす（応用クラスは、B1〜B6のどの組の授業回でも同じ回）
+        const selected = makeupCandidates.find(
+            (candidate) => candidate.lessonId === makeupLessonId,
+        );
+
         if (
             row.makeupType === makeupType &&
-            row.makeupLessonId === makeupLessonId
+            row.makeupSessionKey !== null &&
+            row.makeupSessionKey === selected?.sessionKey
         ) {
             record();
 
