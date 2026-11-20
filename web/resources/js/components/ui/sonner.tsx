@@ -12,11 +12,15 @@ function Toaster({ ...props }: ToasterProps) {
             theme={appearance}
             className="toaster group"
             position="bottom-right"
+            // 画面の下に固定しているタブバー（高さ約60px）に重ならないよう、その上に出す（スマホ幅でも同じ）
+            offset={{ bottom: 76 }}
+            mobileOffset={{ bottom: 76 }}
+            // 白い画面の上で目立つよう、背景を文字の色（濃い紺）、文字を背景の色にする
             style={
                 {
-                    '--normal-bg': 'var(--popover)',
-                    '--normal-text': 'var(--popover-foreground)',
-                    '--normal-border': 'var(--border)',
+                    '--normal-bg': 'var(--foreground)',
+                    '--normal-text': 'var(--background)',
+                    '--normal-border': 'var(--foreground)',
                 } as React.CSSProperties
             }
             {...props}

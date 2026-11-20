@@ -67,7 +67,7 @@ class AuthenticatedSessionController extends Controller
             $request->session()->put('active_guard', 'staff');
             $this->clearLoginRateLimiter($request);
 
-            return redirect()->intended('/');
+            return redirect()->intended(route('admin.attendances.index', absolute: false));
         }
 
         // 保護者・スタッフのどちらにも一致しなかった場合

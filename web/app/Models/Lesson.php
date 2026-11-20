@@ -44,4 +44,14 @@ class Lesson extends Model
     {
         return $this->hasMany(Attendance::class);
     }
+
+    /**
+     * この授業回を補講先（振替・30分前補講）にしている欠席記録。
+     *
+     * @return HasMany<Attendance, $this>
+     */
+    public function makeupAttendances(): HasMany
+    {
+        return $this->hasMany(Attendance::class, 'makeup_lesson_id');
+    }
 }

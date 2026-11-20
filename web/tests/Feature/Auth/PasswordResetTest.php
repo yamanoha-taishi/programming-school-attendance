@@ -334,7 +334,7 @@ class PasswordResetTest extends TestCase
         $this->withCookie($cookieName, $sessionId)->post(route('login'), [
             'member_code' => $staff->member_code,
             'password' => 'password',
-        ])->assertRedirect('/');
+        ])->assertRedirect(route('admin.attendances.index', absolute: false));
 
         $sessionId = $this->app['session']->getId();
 

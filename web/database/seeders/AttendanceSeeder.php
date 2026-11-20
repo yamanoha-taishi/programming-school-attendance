@@ -38,6 +38,10 @@ class AttendanceSeeder extends Seeder
     // 直近の保護者からの事前連絡（欠席・遅刻）がスタッフ未対応（staff_id = null）のままになる確率
     private const UNPROCESSED_RATE = 50;
 
+    // 振替・30分前補講の補講先の授業日が過去の場合に、補講先に来なかった（makeup_status = 欠席）ことにする確率。
+    // 残りは補講先で出席済み（makeup_status = 出席）＝「振替済み」「30分前補講済み」として表示される
+    private const MAKEUP_NO_SHOW_RATE = 10;
+
     // ---- 今日以降の授業回（保護者からの事前連絡のみ） ----
 
     // 今日から何日先までの授業回に、事前連絡を作るか
@@ -97,6 +101,15 @@ class AttendanceSeeder extends Seeder
     /** @var int[] */
     private array $staffIds = [];
 
+    /**
+     * 30分前補講の補講先に決まった、生徒本人の授業回（キーは「生徒ID-授業回ID」）。
+     * 30分前補講は本人の次の授業回に30分早く来るものなので、その授業回には欠席・遅刻の連絡を作らず、出席にする。
+     * 授業回は日付順に作るため、補講先は必ずその授業回の記録を作るより前に決まる。
+     *
+     * @var array<string, true>
+     */
+    private array $catchUpLessonKeys = [];
+
     // Eloquent\Collection<TKey, TModel>はTModelがModelのサブクラスであることを
     // 要求するため、「グループの入れ物」である外側のコレクションをEloquent\Collection
     // として宣言することはできない（中身がCollectionであってModelではないため）。
@@ -114,6 +127,9 @@ class AttendanceSeeder extends Seeder
 
     /** @var Collection<int|string, Collection<int, Lesson>> lesson_plan_id => lessons（日付順） */
     private Collection $lessonsByPlan;
+
+    /** @var Collection<int|string, Lesson> lesson_id => lesson（補講先の授業日を調べるため） */
+    private Collection $lessonsById;
 
     /**
      * Run the database seeds.
@@ -149,6 +165,7 @@ class AttendanceSeeder extends Seeder
             fn (Lesson $lesson) => $this->classSectionKey($lesson->section_id, (int) $lesson->getAttribute('school_class_id'))
         );
         $this->lessonsByPlan = $lessons->groupBy('lesson_plan_id');
+        $this->lessonsById = $lessons->keyBy('id');
 
         Student::orderBy('id')->get()->each(function (Student $student) {
             $key = $this->classSectionKey($student->section_id, $student->school_class_id);
@@ -162,9 +179,17 @@ class AttendanceSeeder extends Seeder
                     continue;
                 }
 
-                if ($lesson->date->lt($this->today)) {
-                    Attendance::create($this->buildPastAttributes($student, $lesson));
+                // 30分前補講で来る予定の授業回か（ありえない組み合わせにならないよう、欠席・遅刻にしない）
+                $isCatchUpLesson = isset($this->catchUpLessonKeys["{$student->id}-{$lesson->id}"]);
 
+                if ($lesson->date->lt($this->today)) {
+                    Attendance::create($this->buildPastAttributes($student, $lesson, $isCatchUpLesson));
+
+                    continue;
+                }
+
+                // 30分前補講で来る予定の授業回には、欠席・遅刻の事前連絡を作らない
+                if ($isCatchUpLesson) {
                     continue;
                 }
 
@@ -203,14 +228,15 @@ class AttendanceSeeder extends Seeder
 
     /**
      * 過去の授業回の記録（出席・欠席の結果が確定している）。
+     * 30分前補講で来る予定だった授業回（$isCatchUpLesson）は、欠席・遅刻にせず出席にする。
      *
      * @return array<string, mixed>
      */
-    private function buildPastAttributes(Student $student, Lesson $lesson): array
+    private function buildPastAttributes(Student $student, Lesson $lesson, bool $isCatchUpLesson): array
     {
-        $isAbsent = $this->chance(self::ABSENCE_RATE);
+        $isAbsent = ! $isCatchUpLesson && $this->chance(self::ABSENCE_RATE);
         $status = $isAbsent ? '欠席' : '出席';
-        $isLate = ! $isAbsent && $this->chance(self::LATE_RATE);
+        $isLate = ! $isAbsent && ! $isCatchUpLesson && $this->chance(self::LATE_RATE);
 
         [$makeupType, $makeupLessonId] = $isAbsent
             ? $this->pickMakeup($student, $lesson, self::MAKEUP_TYPE_WEIGHTS)
@@ -233,13 +259,14 @@ class AttendanceSeeder extends Seeder
             'status' => $status,
             'is_late' => $isLate,
             'makeup_type' => $makeupType,
+            'makeup_status' => $this->pickMakeupStatus($makeupLessonId),
             'note' => $guardianNotified ? $this->pickNote($isAbsent) : null,
         ];
     }
 
     /**
      * 今日以降の授業回への、保護者からの事前連絡（欠席連絡・遅刻連絡）。
-     * 授業はまだ行われていないため、遅刻連絡のstatusはnull（未定）のままにする。
+     * 授業はまだ行われていないため、遅刻連絡のstatusはnull（未記録）のままにする。
      *
      * @return array<string, mixed>
      */
@@ -263,6 +290,7 @@ class AttendanceSeeder extends Seeder
             'status' => $isAbsent ? '欠席' : null,
             'is_late' => ! $isAbsent,
             'makeup_type' => $makeupType,
+            'makeup_status' => $this->pickMakeupStatus($makeupLessonId),
             'note' => $this->pickNote($isAbsent),
         ];
     }
@@ -288,7 +316,32 @@ class AttendanceSeeder extends Seeder
             $makeupType = '未定';
         }
 
+        // 30分前補講の補講先（本人の次の授業回）を覚えておき、その授業回には欠席・遅刻を作らないようにする
+        if ($makeupType === '30分前補講') {
+            $this->catchUpLessonKeys["{$student->id}-{$makeupLessonId}"] = true;
+        }
+
         return [$makeupType, $makeupLessonId];
+    }
+
+    /**
+     * 補講先での出席結果（makeup_status）を決める。
+     * 補講先の授業日が過去なら、MAKEUP_NO_SHOW_RATEの確率で「欠席」（補講先に来なかった）、残りは「出席」。
+     * 補講がない場合や、補講先の授業日が今日以降（まだ補講を受けていない）の場合はnull（未記録）。
+     */
+    private function pickMakeupStatus(?int $makeupLessonId): ?string
+    {
+        if ($makeupLessonId === null) {
+            return null;
+        }
+
+        $makeupLesson = $this->lessonsById->get($makeupLessonId);
+
+        if ($makeupLesson === null || $makeupLesson->date->gte($this->today)) {
+            return null;
+        }
+
+        return $this->chance(self::MAKEUP_NO_SHOW_RATE) ? '欠席' : '出席';
     }
 
     /**
