@@ -57,13 +57,15 @@ class AttendanceUpdateMakeupTest extends TestCase
         // 一覧画面（補講先の授業回の日付）に戻る
         $response->assertRedirect(route('admin.attendances.index', ['date' => '2026-10-03']));
 
-        // 更新するのはmakeup_statusだけ。欠席の記録そのもの（status・staff_idなど）は変えない
+        // 更新するのはmakeup_statusと、補講先での出欠を記録したスタッフ（makeup_staff_id）だけ。
+        // 欠席の記録そのもの（status・staff_idなど）は変えない
         $this->assertDatabaseHas('attendances', [
             'id' => $attendance->id,
             'status' => '欠席',
             'makeup_type' => '振替',
             'makeup_lesson_id' => $this->makeupLesson->id,
             'makeup_status' => '出席',
+            'makeup_staff_id' => $this->staff->id,
             'staff_id' => $recordedBy->id,
         ]);
     }
@@ -106,8 +108,8 @@ class AttendanceUpdateMakeupTest extends TestCase
 
         $this->patchMakeup($transfer, ['makeup_status' => '出席'])->assertSessionHasNoErrors();
 
-        $this->assertDatabaseHas('attendances', ['id' => $transfer->id, 'makeup_status' => '出席']);
-        $this->assertDatabaseHas('attendances', ['id' => $catchUp->id, 'makeup_status' => '出席']);
+        $this->assertDatabaseHas('attendances', ['id' => $transfer->id, 'makeup_status' => '出席', 'makeup_staff_id' => $this->staff->id]);
+        $this->assertDatabaseHas('attendances', ['id' => $catchUp->id, 'makeup_status' => '出席', 'makeup_staff_id' => $this->staff->id]);
         $this->assertDatabaseHas('attendances', ['id' => $other->id, 'makeup_status' => null]);
         $this->assertDatabaseHas('attendances', ['id' => $otherDay->id, 'makeup_status' => null]);
     }

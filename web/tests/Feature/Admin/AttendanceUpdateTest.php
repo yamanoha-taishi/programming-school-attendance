@@ -333,6 +333,7 @@ class AttendanceUpdateTest extends TestCase
             'makeup_type' => '振替',
             'makeup_lesson_id' => $makeupLesson->id,
             'makeup_status' => '出席',
+            'makeup_staff_id' => $this->staff->id,
         ]);
 
         // 同じ種類・同じ補講先を選び直す
@@ -349,6 +350,7 @@ class AttendanceUpdateTest extends TestCase
             'makeup_type' => '振替',
             'makeup_lesson_id' => $makeupLesson->id,
             'makeup_status' => '出席',
+            'makeup_staff_id' => $this->staff->id,
         ]);
     }
 
@@ -432,6 +434,7 @@ class AttendanceUpdateTest extends TestCase
             'makeup_type' => '振替',
             'makeup_lesson_id' => $oldMakeupLesson->id,
             'makeup_status' => '出席',
+            'makeup_staff_id' => $this->staff->id,
         ]);
 
         $this->patchAttendance($lesson, $student, [
@@ -448,6 +451,7 @@ class AttendanceUpdateTest extends TestCase
             'makeup_type' => '30分前補講',
             'makeup_lesson_id' => $newMakeupLesson->id,
             'makeup_status' => null,
+            'makeup_staff_id' => null,
         ]);
     }
 

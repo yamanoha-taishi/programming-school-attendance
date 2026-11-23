@@ -856,6 +856,7 @@ class AttendanceIndexTest extends TestCase
                 'makeupTypes' => ['30分前補講'],
                 'absences' => [['absentDate' => '2026-09-26', 'note' => '次の回に30分早く行きます']],
                 'makeupStatus' => null,
+                'recordedBy' => null,
             ])
             ->where('blocks.0.rows.1.catchUp', null)
             ->has('blocks.0.makeupRows', 0)
@@ -885,6 +886,7 @@ class AttendanceIndexTest extends TestCase
                     ['absentDate' => '2026-09-26', 'note' => null],
                 ],
                 'makeupStatus' => null,
+                'recordedBy' => null,
             ])
             ->has('blocks.0.makeupRows', 0)
             // 1人1行で数える
@@ -983,13 +985,14 @@ class AttendanceIndexTest extends TestCase
         $student = $this->createStudent('B', 'B1', '小3', 'ア振替で来た', weekday: '水');
         $absentLesson = $this->createLesson('2026-09-30', 'B', 'B1', '水');
         $this->createMakeup($student, $absentLesson, $makeupLesson, '振替', '出席')
-            ->update(['note' => '10/3の振替を希望します']);
+            ->update(['note' => '10/3の振替を希望します', 'makeup_staff_id' => $this->staff->id]);
 
         $response = $this->getAttendances('2026-10-03');
 
-        // 元の欠席記録の連絡事項も、来る側の行に出す
+        // 元の欠席記録の連絡事項と、補講先での出欠を記録したスタッフも、来る側の行に出す
         $response->assertInertia(fn ($page) => $page
             ->where('blocks.0.makeupRows.0.makeupStatus', '出席')
+            ->where('blocks.0.makeupRows.0.recordedBy', $this->staff->name)
             ->where('blocks.0.makeupRows.0.absences.0.note', '10/3の振替を希望します')
         );
     }

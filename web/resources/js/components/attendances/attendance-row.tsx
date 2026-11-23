@@ -263,25 +263,37 @@ function AbsenceNotes({
 }
 
 // 補講の見出し（「1時間前補講 13:30〜（11/7・11/14欠席分）」）
+// recordedByを渡すと、右に補講先での出欠を記録したスタッフ（「記録：〇〇」）も出す
 function MakeupHeading({
     group,
     startTime,
     prefix = '',
+    recordedBy = null,
 }: {
     group: { makeupTypes: string[]; absences: { absentDate: string }[] };
     startTime: string;
     prefix?: string;
+    recordedBy?: string | null;
 }) {
     const arrival = arrivalTime(startTime, group.makeupTypes) ?? startTime;
 
     return (
-        <p className="mb-1.5 text-xs font-bold">
-            {prefix}
-            {makeupLabel(group.makeupTypes)} {arrival}〜
-            <span className="font-normal text-muted-foreground">
-                （{absentDatesLabel(group.absences.map((a) => a.absentDate))}）
-            </span>
-        </p>
+        <div className="mb-1.5 flex items-baseline justify-between gap-2">
+            <p className="text-xs font-bold">
+                {prefix}
+                {makeupLabel(group.makeupTypes)} {arrival}〜
+                <span className="font-normal text-muted-foreground">
+                    （
+                    {absentDatesLabel(group.absences.map((a) => a.absentDate))}
+                    ）
+                </span>
+            </p>
+            {recordedBy !== null && (
+                <span className="shrink-0 text-[10px] text-text-faint">
+                    記録：{recordedBy}
+                </span>
+            )}
+        </div>
     );
 }
 
@@ -552,6 +564,23 @@ export default function AttendanceRow({
     const subText = makeupSubText(row);
 
     // 補講で来る分の、欠席した日の連絡事項があるか
+    // この回の記録を誰がしたか（「記録：山田 太郎」。スタッフがまだ対応していない保護者の事前連絡は「保護者の連絡」）。
+    // 来る側の行は、補講先での出欠を記録したスタッフ
+    const recorderText =
+        row.kind === 'regular' && row.recordedBy === null
+            ? row.isNotice
+                ? '保護者の連絡'
+                : null
+            : row.recordedBy !== null
+              ? `記録：${row.recordedBy}`
+              : null;
+
+    // 補講でも来る行で、補講と授業の記録をした人を、それぞれの段に分けて出すか。
+    // ふつうは同じ人が続けて記録するので、同じ人なら右上に1つにまとめ、違う人（片方だけ記録済みを含む）のときだけ分ける
+    const showsRecorderPerSection =
+        catchUp !== null &&
+        !(catchUp.recordedBy !== null && catchUp.recordedBy === row.recordedBy);
+
     const hasAbsenceNote = (
         row.kind === 'makeup' ? row.absences : (catchUp?.absences ?? [])
     ).some((absence) => absence.note !== null);
@@ -633,15 +662,12 @@ export default function AttendanceRow({
                         <RowBadges row={row} startTime={startTime} />
                         <ChevronDown className="size-4 text-text-faint" />
                     </span>
-                    {/* 誰が記録したか。開いたときだけ出す。スタッフがまだ対応していない保護者の事前連絡は「保護者の連絡」 */}
-                    {row.kind === 'regular' &&
-                        (row.recordedBy !== null || row.isNotice) && (
-                            <span className="text-[10px] text-text-faint">
-                                {row.recordedBy !== null
-                                    ? `記録：${row.recordedBy}`
-                                    : '保護者の連絡'}
-                            </span>
-                        )}
+                    {/* 誰が記録したか。開いたときだけ出す。補講と授業の記録をした人が違うときは、それぞれの段に出す */}
+                    {!showsRecorderPerSection && recorderText !== null && (
+                        <span className="text-[10px] text-text-faint">
+                            {recorderText}
+                        </span>
+                    )}
                 </span>
             </button>
 
@@ -672,6 +698,11 @@ export default function AttendanceRow({
                             group={catchUp}
                             startTime={startTime}
                             prefix="① "
+                            recordedBy={
+                                showsRecorderPerSection
+                                    ? catchUp.recordedBy
+                                    : null
+                            }
                         />
                     </div>
                     <div
@@ -714,9 +745,16 @@ export default function AttendanceRow({
                             </Button>
                         ))}
                     </div>
-                    <p className="mt-2.5 mb-1.5 text-xs font-bold">
-                        ② 授業 {startTime}〜
-                    </p>
+                    <div className="mt-2.5 mb-1.5 flex items-baseline justify-between gap-2">
+                        <p className="text-xs font-bold">
+                            ② 授業 {startTime}〜
+                        </p>
+                        {showsRecorderPerSection && recorderText !== null && (
+                            <span className="shrink-0 text-[10px] text-text-faint">
+                                {recorderText}
+                            </span>
+                        )}
+                    </div>
                 </div>
             )}
 

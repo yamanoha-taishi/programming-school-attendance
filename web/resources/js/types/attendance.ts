@@ -47,6 +47,7 @@ export type MakeupGroupData = {
     makeupTypes: string[]; // 補講予定（振替が先）
     absences: { absentDate: string; note: string | null }[]; // 何日の欠席分か（古い順）と、その日の連絡事項
     makeupStatus: string | null; // 補講先での出欠（未記録ならnull）
+    recordedBy: string | null; // 補講先での出欠を記録したスタッフの名前（まだ記録していなければnull）
 };
 
 // 「来る側」の行（1人1行。同じ生徒の補講が2つあれば1行にまとめる）

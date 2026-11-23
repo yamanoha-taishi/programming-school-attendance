@@ -251,6 +251,8 @@ class AttendanceSeeder extends Seeder
             ? null
             : $this->pick($this->staffIds);
 
+        $makeupStatus = $this->pickMakeupStatus($makeupLessonId);
+
         return [
             'student_id' => $student->id,
             'lesson_id' => $lesson->id,
@@ -259,7 +261,9 @@ class AttendanceSeeder extends Seeder
             'status' => $status,
             'is_late' => $isLate,
             'makeup_type' => $makeupType,
-            'makeup_status' => $this->pickMakeupStatus($makeupLessonId),
+            'makeup_status' => $makeupStatus,
+            // 補講先での出欠を記録したスタッフ（補講先での出欠が未記録なら空）
+            'makeup_staff_id' => $makeupStatus === null ? null : $this->pick($this->staffIds),
             'note' => $guardianNotified ? $this->pickNote($isAbsent) : null,
         ];
     }
@@ -282,6 +286,8 @@ class AttendanceSeeder extends Seeder
             ? null
             : $this->pick($this->staffIds);
 
+        $makeupStatus = $this->pickMakeupStatus($makeupLessonId);
+
         return [
             'student_id' => $student->id,
             'lesson_id' => $lesson->id,
@@ -290,7 +296,9 @@ class AttendanceSeeder extends Seeder
             'status' => $isAbsent ? '欠席' : null,
             'is_late' => ! $isAbsent,
             'makeup_type' => $makeupType,
-            'makeup_status' => $this->pickMakeupStatus($makeupLessonId),
+            'makeup_status' => $makeupStatus,
+            // 補講先での出欠を記録したスタッフ（補講先での出欠が未記録なら空）
+            'makeup_staff_id' => $makeupStatus === null ? null : $this->pick($this->staffIds),
             'note' => $this->pickNote($isAbsent),
         ];
     }

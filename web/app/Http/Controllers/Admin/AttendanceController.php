@@ -59,7 +59,7 @@ class AttendanceController extends Controller
 
         // その日の授業回に、振替・30分前補講で「来る側」の欠席記録（クエリ1回）
         // 生徒が論理削除されている記録は、生徒の情報を表示できないので除く
-        $makeupAttendances = Attendance::with(['lesson', 'student.schoolClass'])
+        $makeupAttendances = Attendance::with(['lesson', 'student.schoolClass', 'makeupStaff' => fn ($query) => $query->withTrashed()])
             ->whereIn('makeup_lesson_id', $lessons->pluck('id'))
             ->whereHas('student')
             ->get();
@@ -203,6 +203,7 @@ class AttendanceController extends Controller
                 'makeup_type' => $makeupType,
                 'makeup_lesson_id' => $makeupLessonId,
                 'makeup_status' => $isSameMakeup ? $current->makeup_status : null,
+                'makeup_staff_id' => $isSameMakeup ? $current->makeup_staff_id : null,
                 'staff_id' => $staff->id,
             ],
         );
@@ -237,8 +238,15 @@ class AttendanceController extends Controller
             abort(404);
         }
 
+        /** @var Staff $staff */
+        $staff = $request->user('staff');
+
+        // 記録したスタッフも残す（欠席を記録したスタッフ staff_id は変えない）
         $this->sameSessionMakeups($attendance->student_id, $makeupLesson)
-            ->update(['makeup_status' => $validated['makeup_status']]);
+            ->update([
+                'makeup_status' => $validated['makeup_status'],
+                'makeup_staff_id' => $staff->id,
+            ]);
 
         return back();
     }
@@ -835,6 +843,8 @@ class AttendanceController extends Controller
             ])->all()),
             // 補講先での出欠。まとめて記録するので、ふつうはどれも同じ。1つでも未記録なら未記録にする
             'makeupStatus' => $records->contains(fn (Attendance $record) => $record->makeup_status === null) ? null : $first->makeup_status,
+            // 補講先での出欠を記録したスタッフの名前（まだ記録していなければnull。削除されたスタッフの名前も出す）
+            'recordedBy' => $records->first(fn (Attendance $record) => $record->makeup_staff_id !== null)?->makeupStaff?->name,
         ];
     }
 
