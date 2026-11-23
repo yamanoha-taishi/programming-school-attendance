@@ -34,7 +34,7 @@ docker compose exec app php artisan route:list --name=admin.attendances
 
 ## 変更したあとの確認（全部通るまで直す）
 
-`web/` フォルダで次を実行する。自動で直せるもの（Pint・Prettier・ESLint）を直してから、PHPStan・テスト・型チェックまでまとめて確認する。
+`web/` フォルダで次を実行する。自動で直せるもの（Pint・Prettier・ESLint）を直してから、PHPStan・テスト・型チェック・画面のテスト（Vitest）までまとめて確認する。
 
 ```bash
 bash scripts/check.sh          # PHP・フロント両方

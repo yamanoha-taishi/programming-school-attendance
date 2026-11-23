@@ -3,6 +3,7 @@
 # 変更したあとの確認をまとめて実行する。
 #
 #   使い方（web フォルダで実行）：
+#     ※ 画面のテスト（Vitest）は、フロント側（front）に含まれる
 #     bash scripts/check.sh          自動で直す → 確認する（PHP・フロント両方）
 #     bash scripts/check.sh --check  直さずに確認だけする
 #     bash scripts/check.sh php      PHP側だけ
@@ -66,6 +67,7 @@ if [ "$target" = all ] || [ "$target" = front ]; then
     run "Prettier（確認）" node npm run format:check
     run "ESLint（確認）" node npm run lint:check
     run "型チェック" node npm run types:check
+    run "画面のテスト" node npm run test
 fi
 
 echo ""
