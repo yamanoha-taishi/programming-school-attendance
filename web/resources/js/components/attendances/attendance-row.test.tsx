@@ -177,6 +177,40 @@ describe('AttendanceRow：補講のタグと名前の下の日付', () => {
     });
 });
 
+describe('AttendanceRow：来る側の行', () => {
+    afterEach(cleanup);
+
+    it('同じ生徒の振替と30分前補講は、1行で「振替＋30分前補講」と2つの欠席日を出す', () => {
+        const row: MakeupRowData = {
+            kind: 'makeup',
+            studentId: 3,
+            name: '小川たくみ',
+            nameKana: 'オガワタクミ',
+            schoolClassName: '応用クラス3組',
+            lessonId: 10,
+            ...makeupGroup({
+                makeupTypes: ['振替', '30分前補講'],
+                absences: [
+                    { absentDate: '2026-11-07', note: null },
+                    { absentDate: '2026-11-14', note: null },
+                ],
+                makeupStatus: null,
+                recordedBy: null,
+            }),
+        };
+        renderRow(row);
+
+        expect(screen.getAllByText('振替＋30分前補講').length).toBeGreaterThan(
+            0,
+        );
+        expect(screen.getAllByText('11/7・11/14欠席分').length).toBeGreaterThan(
+            0,
+        );
+        // 開くと、補講の見出しに来る時間（授業の30分前）を出す
+        expect(screen.getByText('振替＋30分前補講 14:00〜')).toBeTruthy();
+    });
+});
+
 describe('AttendanceRow：記録が消えるときの確認', () => {
     afterEach(cleanup);
 
