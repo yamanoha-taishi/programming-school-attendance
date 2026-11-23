@@ -20,6 +20,8 @@ class Attendance extends Model
         'status',
         'is_late',
         'makeup_type',
+        'makeup_status',
+        'makeup_staff_id',
         'note',
     ];
 
@@ -49,6 +51,16 @@ class Attendance extends Model
     public function staff(): BelongsTo
     {
         return $this->belongsTo(Staff::class);
+    }
+
+    /**
+     * 補講先での出欠を記録したスタッフ。
+     *
+     * @return BelongsTo<Staff, $this>
+     */
+    public function makeupStaff(): BelongsTo
+    {
+        return $this->belongsTo(Staff::class, 'makeup_staff_id');
     }
 
     /**

@@ -53,6 +53,10 @@ export default [
             import: importPlugin,
         },
         settings: {
+            // 「@/」で始まるimportは、自分のプロジェクトのもの（internal）として扱う。
+            // @/routes や @/actions はWayfinderがビルド時に作るファイルで、Gitに入っていないため、
+            // GitHub Actionsのようにまだ作られていない環境では場所が見つからず、並び順の判定がずれるのを防ぐ
+            'import/internal-regex': '^@/',
             'import/resolver': {
                 typescript: {
                     alwaysTryTypes: true,

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Staff;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
@@ -87,6 +88,8 @@ class HandleInertiaRequests extends Middleware
                 // 全ページのHTMLに露出してしまう。フロントが実際に使う
                 // 属性だけに絞って共有する。
                 'user' => $user?->only(['id', 'name', 'email']),
+                // スタッフのときだけ権限を渡す（保護者はnull）。下部タブの「管理」の出し分けに使う
+                'role' => $user instanceof Staff ? $user->role : null,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
