@@ -74,13 +74,20 @@ export default function DateCalendar({
             );
     }
 
-    // 移動できる月の範囲：選べる日がある最初の月〜最後の月（表示中の日付の月は必ず含める）
-    const firstMonth = startOfMonth(firstSelectableDate ?? date);
-    const lastMonth = startOfMonth(lastSelectableDate ?? date);
-    const minMonth =
-        firstMonth < startOfMonth(date) ? firstMonth : startOfMonth(date);
-    const maxMonth =
-        lastMonth > startOfMonth(date) ? lastMonth : startOfMonth(date);
+    // 移動できる月の範囲：選べる日がある最初の月〜最後の月と、今年度（今日の年度の4月〜翌3月）の月。
+    // 今年度の月は、選べる日が無くても、先の休校の週や第何回かを確かめられるよう表示できるようにする。
+    // 表示中の日付の月は必ず含める
+    const fiscalYearStart = startOfFiscalYear(today);
+    const fiscalYearEnd = addMonths(fiscalYearStart, 11);
+    const candidates = [
+        startOfMonth(firstSelectableDate ?? date),
+        startOfMonth(lastSelectableDate ?? date),
+        startOfMonth(date),
+        fiscalYearStart,
+        fiscalYearEnd,
+    ].sort();
+    const minMonth = candidates[0];
+    const maxMonth = candidates[candidates.length - 1];
     const prevMonth = addMonths(month, -1);
     const nextMonth = addMonths(month, 1);
 
@@ -136,7 +143,10 @@ export default function DateCalendar({
                 ))}
             </div>
 
-            <div className="mt-1 space-y-1">
+            {/* 週の数（4〜6週）で高さが変わると、上の＜＞ボタンの位置が動いて連打できないため、
+                6週分と休校の週の理由2行分の高さを、いつも取っておく
+                （1週＝マス40px＋すき間4px、休校の週は理由の行の分だけ約21px高い） */}
+            <div className="mt-1 min-h-[19rem] space-y-1">
                 {weeks.map((weekStart) => {
                     const days = Array.from({ length: 7 }, (_, i) =>
                         addDays(weekStart, i),
@@ -159,7 +169,7 @@ export default function DateCalendar({
                                             key={day}
                                             className="flex h-9 items-center justify-center text-sm text-text-faint"
                                         >
-                                            {dayLabel(day)}
+                                            {dayLabel(day, weeks[0])}
                                         </span>
                                     ))}
                                 </div>
@@ -194,6 +204,7 @@ export default function DateCalendar({
                                 <DayCell
                                     key={day}
                                     day={day}
+                                    label={dayLabel(day, weeks[0])}
                                     isSelectable={selectable.has(day)}
                                     isSelected={day === date}
                                     isToday={day === today}
@@ -230,11 +241,13 @@ export default function DateCalendar({
 // 日付のマス。選べる日は押すとその日付に切り替えてモーダルを閉じる
 function DayCell({
     day,
+    label,
     isSelectable,
     isSelected,
     isToday,
 }: {
     day: string;
+    label: string; // マスに出す日付（dayLabel）
     isSelectable: boolean;
     isSelected: boolean;
     isToday: boolean;
@@ -260,7 +273,7 @@ function DayCell({
     if (!isSelectable) {
         return (
             <span className={className}>
-                {dayLabel(day)}
+                {label}
                 {todayDot}
             </span>
         );
@@ -273,7 +286,7 @@ function DayCell({
                 className={className}
                 aria-current={isSelected ? 'date' : undefined}
             >
-                {dayLabel(day)}
+                {label}
                 {todayDot}
             </Link>
         </SheetClose>
@@ -295,9 +308,18 @@ function mergeCalendar(
     };
 }
 
-// マスに出す日付。月の切れ目がわかるよう、1日だけ月も付ける（"2026-11-01" → "11/1"、"2026-11-02" → "2"）
-function dayLabel(day: string): string {
+// その日の年度の始まり（4月1日）。"2026-11-22" → "2026-04-01"、"2027-02-10" → "2026-04-01"
+function startOfFiscalYear(date: string): string {
+    const year = Number(date.slice(0, 4));
+    const month = Number(date.slice(5, 7));
+
+    return `${month >= 4 ? year : year - 1}-04-01`;
+}
+
+// マスに出す日付。何月の日かわかるよう、カレンダーの最初のマスと、月が変わる1日だけ月も付ける
+// （"2026-10-26"が最初のマス → "10/26"、"2026-11-01" → "11/1"、"2026-11-02" → "2"）
+function dayLabel(day: string, firstDay: string): string {
     const [, month, date] = day.split('-').map(Number);
 
-    return date === 1 ? `${month}/1` : String(date);
+    return date === 1 || day === firstDay ? `${month}/${date}` : String(date);
 }
