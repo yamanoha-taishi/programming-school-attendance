@@ -3,11 +3,11 @@
 # 変更したあとの確認をまとめて実行する。
 #
 #   使い方（web フォルダで実行）：
-#     ※ 画面のテスト（Vitest）は、フロント側（front）に含まれる
 #     bash scripts/check.sh          自動で直す → 確認する（PHP・フロント両方）
 #     bash scripts/check.sh --check  直さずに確認だけする
 #     bash scripts/check.sh php      PHP側だけ
 #     bash scripts/check.sh front    フロント側だけ
+#     ※ 画面のテスト（Vitest）は、フロント側（front）に含まれる
 #
 # 1つ失敗しても最後まで実行し、最後に失敗したものをまとめて表示する。
 
