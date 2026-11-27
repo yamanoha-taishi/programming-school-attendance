@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { ClipboardList, LayoutGrid, UserRound } from 'lucide-react';
+import { CircleUserRound, ClipboardList, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { menu } from '@/routes/admin';
 import { index as attendancesIndex } from '@/routes/admin/attendances';
@@ -23,7 +23,7 @@ const tabs: Tab[] = [
     {
         label: '管理',
         href: menu().url,
-        icon: LayoutGrid,
+        icon: Users,
         // 管理メニューから開く保護者・生徒・スタッフの画面でも「管理」を選択中にする
         activePrefixes: [
             '/admin/menu',
@@ -36,7 +36,7 @@ const tabs: Tab[] = [
     {
         label: 'プロフィール',
         href: profileEdit().url,
-        icon: UserRound,
+        icon: CircleUserRound,
         activePrefixes: ['/settings'],
     },
 ];
