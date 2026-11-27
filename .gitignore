@@ -1,2 +1,4 @@
 /Claude outputs
 /memo/
+/.claude/settings.local.json
+/.claude/hooks/.state/
