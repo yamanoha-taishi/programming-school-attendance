@@ -4,6 +4,7 @@ import {
     ChevronDown,
     CircleDashed,
     ChevronRight,
+    ChevronUp,
     Clock,
     History,
     X,
@@ -627,7 +628,7 @@ export default function AttendanceRow({
                     </span>
                     <span className="flex items-center gap-1.5">
                         <RowBadges row={row} startTime={startTime} />
-                        <ChevronRight className="size-4 text-text-faint" />
+                        <ChevronDown className="size-4 text-text-faint" />
                     </span>
                 </button>
             </li>
@@ -660,7 +661,7 @@ export default function AttendanceRow({
                 <span className="flex flex-col items-end gap-1">
                     <span className="flex items-center gap-1.5">
                         <RowBadges row={row} startTime={startTime} />
-                        <ChevronDown className="size-4 text-text-faint" />
+                        <ChevronUp className="size-4 text-text-faint" />
                     </span>
                     {/* 誰が記録したか。開いたときだけ出す。補講と授業の記録をした人が違うときは、それぞれの段に出す */}
                     {!showsRecorderPerSection && recorderText !== null && (
